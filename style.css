@@ -1,0 +1,88 @@
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+}
+
+body {
+    min-height: 100vh;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    background: #f4f6f1;
+}
+
+.money-counter {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    align-self: center;
+    width: min(100% - 40px, 720px);
+    margin-top: max(20px, env(safe-area-inset-top));
+    padding: 14px 20px;
+    border-radius: 16px;
+    background: #fff;
+    color: #32663c;
+    font-family: sans-serif;
+}
+
+.money-label {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.money-amount {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+main {
+    flex: 1;
+    width: 100%;
+    display: grid;
+    place-items: center;
+}
+
+.hex-board {
+    display: block;
+    width: min(98vw, 720px);
+    height: auto;
+}
+
+.hex-tile {
+    fill: #5b9b66;
+    stroke: #f4f6f1;
+    stroke-width: 2;
+}
+
+.plant-button {
+    align-self: center;
+    margin: 0 0 max(24px, env(safe-area-inset-bottom));
+    padding: 14px 28px;
+    border: 0;
+    border-radius: 8px;
+    background: #3e7848;
+    color: #fff;
+    font: 600 1rem/1.2 sans-serif;
+    cursor: pointer;
+}
+
+.plant-button:hover {
+    background: #32663c;
+}
+
+.plant-button:disabled {
+    background: #8a9b8c;
+    cursor: not-allowed;
+}
+
+.plant-button:focus-visible {
+    outline: 3px solid #244c2c;
+    outline-offset: 3px;
+}
