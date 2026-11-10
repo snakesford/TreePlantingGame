@@ -133,30 +133,6 @@ body {
     transform: translate(50%, -50%);
 }
 
-.clock-noon-marker {
-    position: absolute;
-    z-index: 2;
-    top: -3px;
-    left: 50%;
-    width: 3px;
-    height: 7px;
-    border-radius: 2px;
-    background: #32663c;
-    transform: translateX(-50%);
-}
-
-.clock-sunrise-marker {
-    position: absolute;
-    z-index: 2;
-    top: 50%;
-    left: -3px;
-    width: 7px;
-    height: 3px;
-    border-radius: 2px;
-    background: #32663c;
-    transform: translateY(-50%);
-}
-
 @keyframes day-cycle {
     from {
         transform: rotate(0turn);
