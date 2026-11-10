@@ -3,10 +3,16 @@ const moneyAmount = document.querySelector(".money-amount");
 const plantButton = document.querySelector(".plant-button");
 const daylightClock = document.querySelector(".daylight-clock");
 const daylightStatus = document.querySelector(".daylight-status");
+const clockDial = document.querySelector(".clock-dial");
+const pauseClockButton = document.querySelector(".pause-clock");
+const clockSpeedButton = document.querySelector(".speed-toggle");
 let moneyInCents = 50;
 const seedCostInCents = 25;
 const dayCycleDuration = 2 * 60 * 1000;
-const dayCycleStartedAt = Date.now();
+let elapsedCycleTime = 0;
+let previousFrameTime = performance.now();
+let clockSpeed = 1;
+let clockPaused = false;
 const sideLength = 6;
 const radius = 24;
 const centerX = 230;
@@ -14,17 +20,38 @@ const centerY = 205;
 const svgNamespace = "http://www.w3.org/2000/svg";
 const availableTiles = [];
 
-function updateDaylightClock() {
-    const cyclePosition = (Date.now() - dayCycleStartedAt) % dayCycleDuration;
+function updateDaylightClock(frameTime) {
+    if (!clockPaused) {
+        elapsedCycleTime += (frameTime - previousFrameTime) * clockSpeed;
+    }
+    previousFrameTime = frameTime;
+
+    const cyclePosition = elapsedCycleTime % dayCycleDuration;
     const isDaylight = cyclePosition < dayCycleDuration / 2;
     const status = isDaylight ? "Day" : "Night";
+    const rotation = -(cyclePosition / dayCycleDuration) * 360;
 
     daylightStatus.textContent = status;
     daylightClock.setAttribute("aria-label", `Day and night cycle: ${status}`);
+    clockDial.style.transform = `rotate(${rotation}deg)`;
+    requestAnimationFrame(updateDaylightClock);
 }
 
-updateDaylightClock();
-setInterval(updateDaylightClock, 1000);
+clockSpeedButton.addEventListener("click", () => {
+    const tripleSpeedEnabled = clockSpeedButton.getAttribute("aria-pressed") !== "true";
+    clockSpeed = tripleSpeedEnabled ? 3 : 1;
+    clockSpeedButton.setAttribute("aria-pressed", String(tripleSpeedEnabled));
+});
+
+pauseClockButton.addEventListener("click", () => {
+    clockPaused = !clockPaused;
+    pauseClockButton.textContent = clockPaused ? "▶" : "⏸";
+    pauseClockButton.setAttribute("aria-label", `${clockPaused ? "Resume" : "Pause"} daylight clock`);
+    pauseClockButton.setAttribute("aria-pressed", String(clockPaused));
+    pauseClockButton.title = clockPaused ? "Resume" : "Pause";
+});
+
+requestAnimationFrame(updateDaylightClock);
 
 plantButton.addEventListener("click", () => {
     if (moneyInCents < seedCostInCents || availableTiles.length === 0) return;

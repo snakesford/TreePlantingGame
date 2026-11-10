@@ -53,7 +53,7 @@ body {
 
 .daylight-clock {
     display: grid;
-    grid-template-columns: auto 48px;
+    grid-template-columns: auto 48px auto;
     grid-template-rows: auto auto;
     align-items: center;
     column-gap: 10px;
@@ -84,6 +84,41 @@ body {
     border-radius: 50%;
 }
 
+.clock-controls {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.clock-control {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 6px;
+    border: 1px solid #d6e5bb;
+    border-radius: 6px;
+    background: #f4f6f1;
+    color: #32663c;
+    font: 600 0.8rem/1 sans-serif;
+    cursor: pointer;
+}
+
+.clock-control:hover {
+    background: #e4ecd9;
+}
+
+.clock-control[aria-pressed="true"] {
+    border-color: #32663c;
+    background: #c6d9b8;
+    box-shadow: inset 0 0 0 1px #32663c;
+}
+
+.clock-control:focus-visible {
+    outline: 2px solid #32663c;
+    outline-offset: 2px;
+}
+
 .clock-dial {
     position: absolute;
     inset: 0;
@@ -94,19 +129,6 @@ body {
         #f3c75e 0deg 180deg,
         #444 180deg 360deg
     );
-    animation: day-cycle 120s linear infinite normal;
-}
-
-.clock-dial::after {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: #32663c;
-    content: "";
-    transform: translate(-50%, -50%);
 }
 
 .clock-marker {
@@ -129,16 +151,6 @@ body {
     right: 5px;
     left: auto;
     transform: translate(50%, -50%);
-}
-
-@keyframes day-cycle {
-    from {
-        transform: rotate(0turn);
-    }
-
-    to {
-        transform: rotate(-1turn);
-    }
 }
 
 main {
@@ -202,4 +214,15 @@ main {
         column-gap: 6px;
         padding-left: 10px;
     }
+
+    .clock-controls {
+        gap: 2px;
+    }
+
+    .clock-control {
+        min-width: 26px;
+        height: 28px;
+        padding: 0 4px;
+    }
+
 }
