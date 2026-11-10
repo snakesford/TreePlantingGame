@@ -17,13 +17,22 @@ body {
     background: #f4f6f1;
 }
 
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: min(100% - 40px, 720px);
+    margin-top: max(20px, env(safe-area-inset-top));
+    margin-right: auto;
+    margin-left: auto;
+    gap: 12px;
+}
+
 .money-counter {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    align-self: center;
-    width: min(100% - 40px, 720px);
-    margin-top: max(20px, env(safe-area-inset-top));
+    min-width: 130px;
     padding: 14px 20px;
     border-radius: 16px;
     background: #fff;
@@ -40,6 +49,122 @@ body {
     font-size: 1.25rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+}
+
+.daylight-clock {
+    display: grid;
+    grid-template-columns: auto 48px;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 10px;
+    padding: 8px 10px 8px 14px;
+    border-radius: 14px;
+    background: #fff;
+    color: #32663c;
+    font-family: sans-serif;
+}
+
+.daylight-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.daylight-status {
+    font-size: 0.7rem;
+    color: #6d786e;
+}
+
+.clock-face {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border: 2px solid #d6e5bb;
+    border-radius: 50%;
+}
+
+.clock-dial {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    background: conic-gradient(
+        from -90deg,
+        #e9a94a 0deg 4deg,
+        #f3c75e 4deg 180deg,
+        #444 180deg 356deg,
+        #e9a94a 356deg 360deg
+    );
+    animation: day-cycle 120s linear infinite normal;
+}
+
+.clock-dial::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #32663c;
+    content: "";
+    transform: translate(-50%, -50%);
+}
+
+.clock-marker {
+    position: absolute;
+    z-index: 1;
+    left: 50%;
+    color: #32663c;
+    font: 12px/1 sans-serif;
+    transform: translateX(-50%);
+}
+
+.sun-marker {
+    top: 50%;
+    left: 5px;
+    transform: translate(-50%, -50%);
+}
+
+.moon-marker {
+    top: 50%;
+    right: 5px;
+    left: auto;
+    transform: translate(50%, -50%);
+}
+
+.clock-noon-marker {
+    position: absolute;
+    z-index: 2;
+    top: -3px;
+    left: 50%;
+    width: 3px;
+    height: 7px;
+    border-radius: 2px;
+    background: #32663c;
+    transform: translateX(-50%);
+}
+
+.clock-sunrise-marker {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: -3px;
+    width: 7px;
+    height: 3px;
+    border-radius: 2px;
+    background: #32663c;
+    transform: translateY(-50%);
+}
+
+@keyframes day-cycle {
+    from {
+        transform: rotate(0turn);
+    }
+
+    to {
+        transform: rotate(-1turn);
+    }
 }
 
 main {
@@ -85,4 +210,22 @@ main {
 .plant-button:focus-visible {
     outline: 3px solid #244c2c;
     outline-offset: 3px;
+}
+
+@media (max-width: 360px) {
+    .top-bar {
+        width: calc(100% - 24px);
+        gap: 8px;
+    }
+
+    .money-counter {
+        min-width: 0;
+        flex: 1;
+        padding: 12px;
+    }
+
+    .daylight-clock {
+        column-gap: 6px;
+        padding-left: 10px;
+    }
 }

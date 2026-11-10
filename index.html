@@ -9,9 +9,24 @@
 </head>
 
 <body>
-  <header class="money-counter" aria-label="Money">
-    <span class="money-label">Money</span>
-    <output class="money-amount" aria-live="polite">0.5</output>
+  <header class="top-bar">
+    <div class="money-counter" aria-label="Money">
+      <span class="money-label">Money</span>
+      <output class="money-amount" aria-live="polite">0.5</output>
+    </div>
+    <aside class="daylight-clock" aria-label="Day and night cycle">
+      <span class="daylight-label">Daylight</span>
+      <span class="daylight-status" aria-live="polite">Day</span>
+      <span class="clock-face" role="img"
+        aria-label="Two-minute cycle starts at sunrise. Sun is highest at 30 seconds; moon is highest at 90 seconds.">
+        <span class="clock-dial" aria-hidden="true">
+          <span class="clock-marker sun-marker">☀</span>
+          <span class="clock-marker moon-marker">☾</span>
+        </span>
+        <span class="clock-sunrise-marker" aria-hidden="true"></span>
+        <span class="clock-noon-marker" aria-hidden="true"></span>
+      </span>
+    </aside>
   </header>
   <main aria-label="A large green hexagon made from smaller hexagons, with six along each side">
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
