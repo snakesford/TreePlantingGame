@@ -21,8 +21,16 @@ const sproutEarningInCents = 50;
 const dayCycleDuration = 2 * 60 * 1000;
 const daylightDuration = dayCycleDuration / 2;
 const nightDuration = dayCycleDuration - daylightDuration;
-const quarterDayDuration = daylightDuration / 4;
-const thirdNightDuration = nightDuration / 3;
+const dayEarningTicks = [
+    daylightDuration / 8,
+    (daylightDuration * 3) / 8,
+    (daylightDuration * 5) / 8,
+    (daylightDuration * 7) / 8,
+];
+const nightEarningTicks = [
+    daylightDuration + nightDuration / 3,
+    daylightDuration + (nightDuration * 2) / 3,
+];
 let elapsedCycleTime = 0;
 let previousFrameTime = performance.now();
 let clockSpeed = 1;
@@ -36,18 +44,14 @@ const availableTiles = [];
 const plantedSeeds = [];
 let selectedSeed = null;
 
-function totalDaylightTime(cycleTime) {
+function countCycleTicks(cycleTime, tickTimes) {
     const completedCycles = Math.floor(cycleTime / dayCycleDuration);
     const cyclePosition = cycleTime % dayCycleDuration;
 
-    return completedCycles * daylightDuration + Math.min(cyclePosition, daylightDuration);
-}
-
-function totalNightTime(cycleTime) {
-    const completedCycles = Math.floor(cycleTime / dayCycleDuration);
-    const cyclePosition = cycleTime % dayCycleDuration;
-
-    return completedCycles * nightDuration + Math.max(0, cyclePosition - daylightDuration);
+    return (
+        completedCycles * tickTimes.length +
+        tickTimes.filter((tickTime) => tickTime <= cyclePosition).length
+    );
 }
 
 function updateMoneyDisplay() {
@@ -132,27 +136,20 @@ function updateDaylightClock(frameTime) {
     }
     previousFrameTime = frameTime;
 
-    const daylightTimePassed =
-        totalDaylightTime(elapsedCycleTime) - totalDaylightTime(previousElapsedCycleTime);
-    const nightTimePassed =
-        totalNightTime(elapsedCycleTime) - totalNightTime(previousElapsedCycleTime);
+    const daylightTicksPassed =
+        countCycleTicks(elapsedCycleTime, dayEarningTicks) -
+        countCycleTicks(previousElapsedCycleTime, dayEarningTicks);
+    const nightTicksPassed =
+        countCycleTicks(elapsedCycleTime, nightEarningTicks) -
+        countCycleTicks(previousElapsedCycleTime, nightEarningTicks);
     let earnedMoney = 0;
 
     plantedSeeds.forEach((seed) => {
-        seed.daylightTime += daylightTimePassed;
-        seed.nightTime += nightTimePassed;
-        const completedQuarterDays = Math.floor(seed.daylightTime / quarterDayDuration);
-        const completedNightThirds = Math.floor(seed.nightTime / thirdNightDuration);
-
-        if (completedQuarterDays > 0 || completedNightThirds > 0) {
-            const daylightEarningInCents =
-                seed.upgrades === maximumSeedUpgrades ? sproutEarningInCents : seedEarningInCents;
-            earnedMoney +=
-                completedQuarterDays * daylightEarningInCents +
-                completedNightThirds * seedEarningInCents;
-            seed.daylightTime %= quarterDayDuration;
-            seed.nightTime %= thirdNightDuration;
-        }
+        const daylightEarningInCents =
+            seed.upgrades === maximumSeedUpgrades ? sproutEarningInCents : seedEarningInCents;
+        earnedMoney +=
+            daylightTicksPassed * daylightEarningInCents +
+            nightTicksPassed * seedEarningInCents;
     });
 
     if (earnedMoney > 0) {
@@ -200,8 +197,6 @@ plantButton.addEventListener("click", () => {
         x,
         y,
         upgrades: 0,
-        daylightTime: 0,
-        nightTime: 0,
     };
 
     updateSeedAppearance(seedState);

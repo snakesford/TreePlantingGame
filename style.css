@@ -53,24 +53,24 @@ body {
 
 .daylight-clock {
     display: grid;
-    grid-template-columns: auto 64px auto;
+    grid-template-columns: auto 88px auto;
     grid-template-rows: auto auto;
     align-items: center;
-    column-gap: 10px;
-    padding: 8px 10px 8px 14px;
-    border-radius: 14px;
+    column-gap: 14px;
+    padding: 12px 14px 12px 18px;
+    border-radius: 16px;
     background: #fff;
     color: #32663c;
     font-family: sans-serif;
 }
 
 .daylight-label {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     font-weight: 600;
 }
 
 .daylight-status {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: #6d786e;
 }
 
@@ -78,8 +78,8 @@ body {
     grid-column: 2;
     grid-row: 1 / span 2;
     position: relative;
-    width: 64px;
-    height: 64px;
+    width: 88px;
+    height: 88px;
     border: 2px solid #d6e5bb;
     border-radius: 50%;
 }
@@ -88,19 +88,20 @@ body {
     grid-column: 3;
     grid-row: 1 / span 2;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
 }
 
 .clock-control {
-    min-width: 30px;
-    height: 30px;
-    padding: 0 6px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 8px;
     border: 1px solid #d6e5bb;
     border-radius: 6px;
     background: #f4f6f1;
     color: #32663c;
-    font: 600 0.8rem/1 sans-serif;
+    font: 600 0.9rem/1 sans-serif;
     cursor: pointer;
 }
 
@@ -154,7 +155,7 @@ body {
     position: absolute;
     z-index: 1;
     color: #32663c;
-    font: 16px/1 sans-serif;
+    font: 18px/1 sans-serif;
 }
 
 .clock-tick {
@@ -166,19 +167,23 @@ body {
     height: 8px;
     border-radius: 1px;
     background: #32663c;
-    transform-origin: 1px 31px;
+    transform-origin: 1px 43px;
 }
 
-.day-quarter-one {
-    transform: rotate(45deg);
+.day-earning-one {
+    transform: rotate(22.5deg);
 }
 
-.day-quarter-two {
-    transform: rotate(90deg);
+.day-earning-two {
+    transform: rotate(67.5deg);
 }
 
-.day-quarter-three {
-    transform: rotate(135deg);
+.day-earning-three {
+    transform: rotate(112.5deg);
+}
+
+.day-earning-four {
+    transform: rotate(157.5deg);
 }
 
 .night-earning-one {
@@ -415,7 +420,7 @@ main {
     }
 
     .clock-controls {
-        gap: 2px;
+        gap: 6px;
     }
 
     .clock-control {
