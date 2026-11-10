@@ -8,10 +8,11 @@ const clockFace = document.querySelector(".clock-face");
 const pauseClockButton = document.querySelector(".pause-clock");
 const clockSpeedButton = document.querySelector(".speed-toggle");
 const seedDialog = document.querySelector(".seed-dialog");
+const seedPreviewImage = document.querySelector(".seed-preview img");
+const seedDescription = document.querySelector(".sprout-description");
 const seedProgressBar = document.querySelector(".seed-progress-bar");
 const seedProgressCount = document.querySelector(".seed-progress-count");
-const seedUpgradeButton = document.querySelector(".seed-upgrade-button");
-const seedDialogCloseButton = document.querySelector(".seed-dialog-close");
+const seedUpgradeCost = document.querySelector(".seed-upgrade-cost");
 let moneyInCents = 50;
 const seedCostInCents = 25;
 const seedUpgradeCostInCents = 40;
@@ -74,8 +75,8 @@ function updateSeedAppearance(seedState) {
     seedState.image.setAttribute(
         "aria-label",
         isSprout
-            ? "Fully grown sprout. Open to view."
-            : `Seed, upgrade ${seedState.upgrades} of ${maximumSeedUpgrades}. Click to view upgrade options.`
+            ? "Fully grown sprout."
+            : `Seed, upgrade ${seedState.upgrades} of ${maximumSeedUpgrades}. Click to upgrade.`
     );
     seedState.image.setAttribute("role", "button");
     seedState.image.setAttribute("tabindex", "0");
@@ -86,47 +87,50 @@ function updateSeedDialog() {
     if (!selectedSeed) return;
 
     const isSprout = selectedSeed.upgrades === maximumSeedUpgrades;
+    seedPreviewImage.src = isSprout ? "images/sprout.png" : "images/seed.png";
+    seedPreviewImage.alt = isSprout ? "Sprout" : "Seed";
+    seedDescription.textContent = isSprout
+        ? "Sprouts earn 0.5 per tick"
+        : "Upgrade this seed into a sprout";
     seedProgressBar.value = selectedSeed.upgrades;
     seedProgressCount.textContent = `${selectedSeed.upgrades}/${maximumSeedUpgrades}`;
-    seedUpgradeButton.disabled =
-        isSprout || moneyInCents < seedUpgradeCostInCents;
-    seedUpgradeButton.textContent = isSprout
-        ? "Fully Grown"
-        : "Buy";
+    seedUpgradeCost.textContent = isSprout
+        ? "Grown"
+        : (seedUpgradeCostInCents / 100).toString();
 }
 
 function openSeedDialog(seedState) {
     selectedSeed = seedState;
     updateSeedDialog();
-    seedDialog.showModal();
+    if (!seedDialog.open) {
+        seedDialog.show();
+    }
 }
 
-function upgradeSelectedSeed() {
+function upgradeSeed(seedState) {
     if (
-        !selectedSeed ||
-        selectedSeed.upgrades >= maximumSeedUpgrades ||
+        seedState.upgrades >= maximumSeedUpgrades ||
         moneyInCents < seedUpgradeCostInCents
     ) {
         return;
     }
 
     moneyInCents -= seedUpgradeCostInCents;
-    selectedSeed.upgrades += 1;
-    updateSeedAppearance(selectedSeed);
+    seedState.upgrades += 1;
+    updateSeedAppearance(seedState);
     updateMoneyDisplay();
-    updateSeedDialog();
+    if (selectedSeed === seedState) {
+        updateSeedDialog();
+    }
 }
 
-seedUpgradeButton.addEventListener("click", upgradeSelectedSeed);
-seedDialogCloseButton.addEventListener("click", () => seedDialog.close());
-seedDialog.addEventListener("close", () => {
-    selectedSeed = null;
-});
-seedDialog.addEventListener("click", (event) => {
-    if (event.target === seedDialog) {
+function closeSeedDialog(seedState) {
+    if (selectedSeed !== seedState) return;
+    if (seedDialog.open) {
         seedDialog.close();
     }
-});
+    selectedSeed = null;
+}
 
 function updateDaylightClock(frameTime) {
     const previousElapsedCycleTime = elapsedCycleTime;
@@ -200,11 +204,13 @@ plantButton.addEventListener("click", () => {
     };
 
     updateSeedAppearance(seedState);
-    seed.addEventListener("click", () => openSeedDialog(seedState));
+    seed.addEventListener("mouseenter", () => openSeedDialog(seedState));
+    seed.addEventListener("mouseleave", () => closeSeedDialog(seedState));
+    seed.addEventListener("click", () => upgradeSeed(seedState));
     seed.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            openSeedDialog(seedState);
+            upgradeSeed(seedState);
         }
     });
     tiles.append(seed);
