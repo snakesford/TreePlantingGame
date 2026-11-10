@@ -53,7 +53,7 @@ body {
 
 .daylight-clock {
     display: grid;
-    grid-template-columns: auto 48px auto;
+    grid-template-columns: auto 64px auto;
     grid-template-rows: auto auto;
     align-items: center;
     column-gap: 10px;
@@ -78,8 +78,8 @@ body {
     grid-column: 2;
     grid-row: 1 / span 2;
     position: relative;
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
     border: 2px solid #d6e5bb;
     border-radius: 50%;
 }
@@ -129,27 +129,75 @@ body {
         #f3c75e 0deg 180deg,
         #444 180deg 360deg
     );
+    transform: rotate(var(--clock-rotation, 0deg));
+}
+
+.clock-markers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transform: rotate(var(--clock-rotation, 0deg));
+}
+
+.clock-current-time-tick {
+    position: absolute;
+    z-index: 3;
+    top: -3px;
+    left: calc(50% - 2px);
+    width: 4px;
+    height: 10px;
+    border-radius: 2px;
+    background: #32663c;
 }
 
 .clock-marker {
     position: absolute;
     z-index: 1;
-    left: 50%;
     color: #32663c;
-    font: 12px/1 sans-serif;
-    transform: translateX(-50%);
+    font: 16px/1 sans-serif;
+}
+
+.clock-tick {
+    position: absolute;
+    z-index: 2;
+    top: 0;
+    left: calc(50% - 1px);
+    width: 2px;
+    height: 8px;
+    border-radius: 1px;
+    background: #32663c;
+    transform-origin: 1px 31px;
+}
+
+.day-quarter-one {
+    transform: rotate(45deg);
+}
+
+.day-quarter-two {
+    transform: rotate(90deg);
+}
+
+.day-quarter-three {
+    transform: rotate(135deg);
+}
+
+.night-earning-one {
+    transform: rotate(240deg);
+}
+
+.night-earning-two {
+    transform: rotate(300deg);
 }
 
 .sun-marker {
     top: 50%;
-    left: 5px;
+    left: -7px;
     transform: translate(-50%, -50%);
 }
 
 .moon-marker {
     top: 50%;
-    right: 5px;
-    left: auto;
+    right: -7px;
     transform: translate(50%, -50%);
 }
 
@@ -170,6 +218,15 @@ main {
     fill: #5b9b66;
     stroke: #f4f6f1;
     stroke-width: 2;
+}
+
+.upgradeable-seed {
+    cursor: pointer;
+}
+
+.upgradeable-seed:focus-visible {
+    outline: 2px solid #32663c;
+    outline-offset: 2px;
 }
 
 .plant-button {
@@ -196,6 +253,148 @@ main {
 .plant-button:focus-visible {
     outline: 3px solid #244c2c;
     outline-offset: 3px;
+}
+
+.seed-dialog {
+    width: min(90vw, 340px);
+    padding: 24px;
+    border: 0;
+    border-radius: 12px;
+    color: #32663c;
+    font-family: sans-serif;
+}
+
+.seed-dialog::backdrop {
+    background: rgb(26 39 28 / 45%);
+}
+
+.seed-dialog h2 {
+    margin: 0 0 16px;
+    text-align: center;
+}
+
+.seed-preview-section {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 auto 16px;
+}
+
+.seed-preview {
+    display: grid;
+    flex: 0 0 96px;
+    width: 96px;
+    height: 96px;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 20px;
+    background: #e8f0df;
+}
+
+.seed-preview img {
+    display: block;
+    width: 68px;
+    height: 68px;
+    object-fit: contain;
+}
+
+.sprout-description {
+    margin: 0;
+    color: #526653;
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+.seed-upgrade-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 24px;
+}
+
+.seed-progress-track {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+}
+
+.seed-progress-bar {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border: 0;
+    border-radius: 999px;
+    background: #e4ecd9;
+    accent-color: #5b9b66;
+}
+
+.seed-progress-bar::-webkit-progress-bar {
+    border-radius: 999px;
+    background: #e4ecd9;
+}
+
+.seed-progress-bar::-webkit-progress-value {
+    border-radius: 999px;
+    background: #5b9b66;
+}
+
+.seed-progress-bar::-moz-progress-bar {
+    border-radius: 999px;
+    background: #5b9b66;
+}
+
+.seed-progress-count {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: #244c2c;
+    font: 600 0.9rem/1 sans-serif;
+    pointer-events: none;
+}
+
+.seed-upgrade-cost {
+    min-width: 34px;
+    color: #32663c;
+    font: 600 0.9rem/1 sans-serif;
+    text-align: right;
+}
+
+.seed-dialog-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.seed-dialog-actions button {
+    padding: 10px 14px;
+    border: 1px solid #d6e5bb;
+    border-radius: 6px;
+    background: #f4f6f1;
+    color: #32663c;
+    font: 600 0.9rem/1.2 sans-serif;
+    cursor: pointer;
+}
+
+.seed-dialog-actions .seed-upgrade-button:not(:disabled) {
+    border-color: #3e7848;
+    background: #3e7848;
+    color: #fff;
+}
+
+.seed-dialog-actions button:disabled {
+    border-color: #d3d6d0;
+    background: #e4e6e2;
+    color: #858b82;
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.seed-dialog-actions button:focus-visible {
+    outline: 3px solid #32663c;
+    outline-offset: 2px;
 }
 
 @media (max-width: 360px) {
