@@ -90,11 +90,9 @@ body {
     overflow: hidden;
     border-radius: 50%;
     background: conic-gradient(
-        from -90deg,
-        #e9a94a 0deg 4deg,
-        #f3c75e 4deg 180deg,
-        #444 180deg 356deg,
-        #e9a94a 356deg 360deg
+        from 0deg,
+        #f3c75e 0deg 180deg,
+        #444 180deg 360deg
     );
     animation: day-cycle 120s linear infinite normal;
 }
