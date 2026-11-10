@@ -8,13 +8,28 @@ const radius = 24;
 const centerX = 230;
 const centerY = 205;
 const svgNamespace = "http://www.w3.org/2000/svg";
+const availableTiles = [];
 
 plantButton.addEventListener("click", () => {
-    if (moneyInCents < seedCostInCents) return;
+    if (moneyInCents < seedCostInCents || availableTiles.length === 0) return;
+
+    const tileIndex = Math.floor(Math.random() * availableTiles.length);
+    const { x, y } = availableTiles.splice(tileIndex, 1)[0];
+    const seed = document.createElementNS(svgNamespace, "image");
+
+    seed.setAttribute("class", "planted-seed");
+    seed.setAttribute("href", "images/seed.png");
+    seed.setAttribute("x", x - 14);
+    seed.setAttribute("y", y - 14);
+    seed.setAttribute("width", "28");
+    seed.setAttribute("height", "28");
+    seed.setAttribute("role", "img");
+    seed.setAttribute("aria-label", "Planted seed");
+    tiles.append(seed);
 
     moneyInCents -= seedCostInCents;
     moneyAmount.textContent = (moneyInCents / 100).toString();
-    plantButton.disabled = moneyInCents < seedCostInCents;
+    plantButton.disabled = moneyInCents < seedCostInCents || availableTiles.length === 0;
 });
 
 for (let q = -(sideLength - 1); q < sideLength; q += 1) {
@@ -32,5 +47,6 @@ for (let q = -(sideLength - 1); q < sideLength; q += 1) {
         tile.setAttribute("class", "hex-tile");
         tile.setAttribute("points", points);
         tiles.append(tile);
+        availableTiles.push({ x, y });
     }
 }
