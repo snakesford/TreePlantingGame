@@ -10,9 +10,12 @@
 
 <body>
   <header class="top-bar">
-    <div class="level-indicator">
-      <progress class="level-progress" value="0" max="100" aria-label="Level 1 progress"></progress>
-      <span class="level-label" aria-hidden="true">Level 1</span>
+    <div class="level-row">
+      <div class="level-indicator">
+        <progress class="level-progress" value="0" max="100" aria-label="Level 1 progress"></progress>
+        <span class="level-label" aria-hidden="true">Level 1</span>
+      </div>
+      <button class="next-level-button" type="button" hidden>Next Level</button>
     </div>
     <div class="money-counter" aria-label="Leaves">
       <img class="currency-icon balance-icon" src="images/leaf.png" alt="Leaves" width="32" height="32" />
@@ -42,7 +45,7 @@
     </aside>
   </header>
   <output class="save-status" role="status" aria-live="polite"></output>
-  <main aria-label="A large green hexagon made from smaller hexagons, with six along each side">
+  <main aria-label="Green hexagon game board">
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
       <g class="hex-tiles"></g>
     </svg>

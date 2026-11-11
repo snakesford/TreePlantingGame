@@ -29,10 +29,50 @@ body {
     gap: 12px;
 }
 
+.level-row {
+    display: flex;
+    align-items: center;
+    flex: 0 0 100%;
+    gap: 12px;
+}
+
 .level-indicator {
     position: relative;
-    flex: 0 0 100%;
+    flex: 1;
+    min-width: 0;
     height: 32px;
+}
+
+.next-level-button {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: #3e7848;
+    color: #fff;
+    font: 600 0.9rem/1.2 sans-serif;
+    cursor: pointer;
+    animation: next-level-pulse 2.4s ease-in-out infinite;
+}
+
+.next-level-button:hover {
+    background: #32663c;
+}
+
+.next-level-button:focus-visible {
+    outline: 3px solid #244c2c;
+    outline-offset: 3px;
+}
+
+@keyframes next-level-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(62 120 72 / 0%); }
+    50% { box-shadow: 0 0 0 5px rgb(62 120 72 / 18%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .next-level-button {
+        animation: none;
+    }
 }
 
 .level-progress {
@@ -301,6 +341,10 @@ main {
     width: 48px;
     height: 48px;
     object-fit: contain;
+}
+
+.game-actions button[hidden] {
+    display: none;
 }
 
 .game-actions button:hover:not(:disabled) {

@@ -1,4 +1,9 @@
 const tiles = document.querySelector(".hex-tiles");
+const levelProgress = document.querySelector(".level-progress");
+const levelLabel = document.querySelector(".level-label");
+const nextLevelButton = document.querySelector(".next-level-button");
+let currentLevel = 1;
+let levelOneCompleted = false;
 const moneyAmount = document.querySelector(".money-amount");
 const plantMapleButton = document.querySelector(".plant-maple-button");
 const plantBirchButton = document.querySelector(".plant-birch-button");
@@ -163,7 +168,7 @@ let previousFrameTime = performance.now();
 let clockSpeed = 1;
 let clockPaused = false;
 let gameStarted = false;
-const sideLength = 6;
+let sideLength = 2;
 const radius = 24;
 // Largest centered square inside a pointy-top hex, with room for its border.
 const maximumTileImageSize = 2 * (radius - 1.25) / (1 + 1 / Math.sqrt(3));
@@ -197,10 +202,14 @@ function showLeafAmount(element, amount, prefix = "", suffix = "") {
 }
 
 function saveGame() {
+    updateLevelProgress();
     if (!gameStarted) return;
 
     const saveData = {
         version: saveVersion,
+        currentLevel,
+        boardSideLength: sideLength,
+        levelOneCompleted,
         moneyInCents,
         elapsedCycleTime,
         clockSpeed,
@@ -289,6 +298,9 @@ function isValidSaveData(data) {
         !data ||
         typeof data !== "object" ||
         ![1, saveVersion].includes(data.version) ||
+        (data.currentLevel !== undefined && ![1, 2].includes(data.currentLevel)) ||
+        (data.boardSideLength !== undefined && ![2, 6].includes(data.boardSideLength)) ||
+        (data.levelOneCompleted !== undefined && typeof data.levelOneCompleted !== "boolean") ||
         !Number.isFinite(data.moneyInCents) ||
         data.moneyInCents < 0 ||
         !Number.isFinite(data.elapsedCycleTime) ||
@@ -307,19 +319,9 @@ function isValidSaveData(data) {
     );
     const additionalTiles = data.additionalTiles ?? [];
     const obstacleTiles = data.obstacles ?? [];
-    const knownTileKeys = new Set(boardTileKeys);
-    const tilePositions = availableTiles.map(({ x, y }) => ({ x, y }));
-    for (const obstacle of obstacleTiles) {
-        if (
-            !obstacle ||
-            !Number.isInteger(obstacle.q) ||
-            !Number.isInteger(obstacle.r) ||
-            !obstacleTypes.has(obstacle.type) ||
-            !knownTileKeys.has(`${obstacle.q},${obstacle.r}`)
-        ) {
-            return false;
-        }
-    }
+    const startingTiles = getStartingCoordinates(data.boardSideLength ?? 6);
+    const knownTileKeys = new Set(startingTiles.map(({ q, r }) => getTileKey(q, r)));
+    const tilePositions = startingTiles.map(({ q, r }) => getTileCenter(q, r));
     for (const tile of additionalTiles) {
         if (
             !tile ||
@@ -341,6 +343,18 @@ function isValidSaveData(data) {
 
         knownTileKeys.add(key);
         tilePositions.push(getTileCenter(tile.q, tile.r));
+    }
+
+    for (const obstacle of obstacleTiles) {
+        if (
+            !obstacle ||
+            !Number.isInteger(obstacle.q) ||
+            !Number.isInteger(obstacle.r) ||
+            !obstacleTypes.has(obstacle.type) ||
+            !knownTileKeys.has(`${obstacle.q},${obstacle.r}`)
+        ) {
+            return false;
+        }
     }
 
     if (data.seeds.length > tilePositions.length) return false;
@@ -388,6 +402,7 @@ function countCycleTicks(cycleTime, tickTimes) {
 }
 
 function updateMoneyDisplay() {
+    updateLevelProgress();
     moneyAmount.textContent = (moneyInCents / 100).toString();
     const cannotPlantSeed = moneyInCents < seedCostInCents || availableTiles.length === 0;
     plantMapleButton.disabled = cannotPlantSeed;
@@ -395,6 +410,45 @@ function updateMoneyDisplay() {
     plantSpruceButton.disabled = cannotPlantSeed;
     plantOakButton.disabled = moneyInCents < oakSeedCostInCents || availableTiles.length === 0;
     buyTileButton.disabled = moneyInCents < tileCostInCents;
+}
+
+function updateLevelProgress() {
+    const sprouts = plantedSeeds.filter((seed) => seed.stageIndex >= 2).length;
+    const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
+    if (currentLevel === 1 && (sprouts >= 2 || income >= 200)) {
+        levelOneCompleted = true;
+    }
+    levelProgress.value = currentLevel === 1
+        ? (levelOneCompleted ? 100 : Math.min(100, Math.max(sprouts / 2, income / 200) * 100))
+        : 0;
+    levelProgress.setAttribute("aria-label", `Level ${currentLevel} progress`);
+    levelLabel.textContent = `Level ${currentLevel}`;
+    nextLevelButton.hidden = currentLevel !== 1 || !levelOneCompleted;
+}
+
+function advanceToNextLevel() {
+    if (!gameStarted || currentLevel !== 1 || !levelOneCompleted) return;
+
+    currentLevel = 2;
+    sideLength = 6;
+    resetBoard();
+    spawnRandomTileObstacles();
+    updateMoneyDisplay();
+    saveGame();
+}
+
+function resetBoard() {
+    closeSeedDialog(selectedSeed);
+    closeObstacleDialog(selectedObstacle);
+    tiles.replaceChildren();
+    plantedSeeds.length = 0;
+    availableTiles.length = 0;
+    boardTileCoordinates.length = 0;
+    purchasedTileCoordinates.length = 0;
+    boardTileKeys.clear();
+    tileObstacles.clear();
+    createStartingBoard();
+    updateBoardViewBox();
 }
 
 const tileNeighborOffsets = [
@@ -455,6 +509,7 @@ function closeObstacleDialog(key) {
 }
 
 function addTileObstacle(q, r, obstacleType = null) {
+    if (currentLevel === 1) return false;
     const key = getTileKey(q, r);
     if (tileObstacles.has(key)) return false;
 
@@ -831,6 +886,11 @@ function continueGame() {
     if (!savedGameData || !isValidSaveData(savedGameData)) return;
 
     moneyInCents = savedGameData.moneyInCents;
+    currentLevel = savedGameData.currentLevel ?? 1;
+    // Older saves used six tiles per side; retain their trees and purchased tiles.
+    sideLength = savedGameData.boardSideLength ?? 6;
+    resetBoard();
+    levelOneCompleted = savedGameData.levelOneCompleted ?? false;
     elapsedCycleTime = savedGameData.elapsedCycleTime;
     clockSpeed = savedGameData.clockSpeed;
     clockSpeedButton.setAttribute("aria-pressed", String(clockSpeed === 3));
@@ -859,6 +919,10 @@ function startNewGame() {
     }
 
     savedGameData = null;
+    currentLevel = 1;
+    sideLength = 2;
+    resetBoard();
+    levelOneCompleted = false;
     hasStoredSave = false;
     moneyInCents = moneyInCents;
     elapsedCycleTime = 0;
@@ -891,6 +955,7 @@ pauseClockButton.addEventListener("click", () => {
 });
 
 continueGameButton.addEventListener("click", continueGame);
+nextLevelButton.addEventListener("click", advanceToNextLevel);
 newGameButton.addEventListener("click", startNewGame);
 window.addEventListener("beforeunload", saveGame);
 
@@ -947,13 +1012,23 @@ buyTileButton.addEventListener("click", () => {
     saveGame();
 });
 
-for (let q = -(sideLength - 1); q < sideLength; q += 1) {
-    for (let r = -(sideLength - 1); r < sideLength; r += 1) {
-        if (Math.abs(q + r) >= sideLength) continue;
+function getStartingCoordinates(length) {
+    const coordinates = [];
+    for (let q = -(length - 1); q < length; q += 1) {
+        for (let r = -(length - 1); r < length; r += 1) {
+            if (Math.abs(q + r) >= length) continue;
 
-        addBoardTile(q, r);
+            coordinates.push({ q, r });
+        }
     }
+    return coordinates;
 }
 
+function createStartingBoard() {
+    getStartingCoordinates(sideLength).forEach(({ q, r }) => addBoardTile(q, r));
+}
+
+createStartingBoard();
+updateLevelProgress();
 readSavedGame();
 saveSlotDialog.showModal();
