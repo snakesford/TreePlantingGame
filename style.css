@@ -19,6 +19,7 @@ body {
 
 .top-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     width: min(100% - 40px, 720px);
@@ -26,6 +27,48 @@ body {
     margin-right: auto;
     margin-left: auto;
     gap: 12px;
+}
+
+.level-indicator {
+    position: relative;
+    flex: 0 0 100%;
+    height: 32px;
+}
+
+.level-progress {
+    display: block;
+    width: 100%;
+    height: 100%;
+    appearance: none;
+    overflow: hidden;
+    border: 1px solid #c6d9b8;
+    border-radius: 999px;
+    background: #e4ecd9;
+}
+
+.level-progress::-webkit-progress-bar {
+    background: #e4ecd9;
+    border-radius: 999px;
+}
+
+.level-progress::-webkit-progress-value {
+    background: #8fbd79;
+    border-radius: 999px;
+}
+
+.level-progress::-moz-progress-bar {
+    background: #8fbd79;
+    border-radius: 999px;
+}
+
+.level-label {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: #244c2c;
+    font: 700 0.95rem/1 sans-serif;
+    pointer-events: none;
 }
 
 .money-counter {
