@@ -467,9 +467,15 @@ function addTileObstacle(q, r, obstacleType = null) {
 
     const { x, y } = getTileCenter(q, r);
     const obstacleImage = document.createElementNS(svgNamespace, "image");
-    const obstacleSize = Math.min(maximumTileImageSize,
-        definition.key === "boulder" ? 36 :
-        definition.key === "rock" ? 27 : 30);
+    const obstacleSize = definition.key === "boulder" ? 40 :
+        definition.key === "rock" ? 36 : 38;
+    // Allow larger artwork while clipping its corners to the tile's inner edge.
+    const clipPoints = Array.from({ length: 6 }, (_, index) => {
+        const angle = ((index * 60 - 90) * Math.PI) / 180;
+        const extent = (radius - 1.25) / obstacleSize * 100;
+        return `${50 + extent * Math.cos(angle)}% ${50 + extent * Math.sin(angle)}%`;
+    }).join(", ");
+    obstacleImage.style.clipPath = `polygon(${clipPoints}) fill-box`;
 
     obstacleImage.setAttribute("class", "tile-obstacle");
     obstacleImage.setAttribute("href", definition.image);

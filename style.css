@@ -455,8 +455,20 @@ main {
 .seed-upgrade-cost {
     min-width: 34px;
     color: #32663c;
-    font: 600 0.9rem/1 sans-serif;
+    font: 700 1.25rem/1.3 sans-serif;
     text-align: right;
+    white-space: nowrap;
+}
+
+.obstacle-description {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.seed-upgrade-cost .currency-icon,
+.obstacle-description .currency-icon {
+    width: 32px;
+    height: 32px;
 }
 
 @media (max-width: 360px) {
