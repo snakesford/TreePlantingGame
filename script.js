@@ -7,6 +7,11 @@ const clockDial = document.querySelector(".clock-dial");
 const clockFace = document.querySelector(".clock-face");
 const pauseClockButton = document.querySelector(".pause-clock");
 const clockSpeedButton = document.querySelector(".speed-toggle");
+const saveSlotDialog = document.querySelector(".save-slot-dialog");
+const saveSlotSummary = document.querySelector(".save-slot-summary");
+const continueGameButton = document.querySelector(".continue-game-button");
+const newGameButton = document.querySelector(".new-game-button");
+const saveStatus = document.querySelector(".save-status");
 const seedDialog = document.querySelector(".seed-dialog");
 const seedDialogTitle = document.querySelector("#seed-dialog-title");
 const seedPreviewImage = document.querySelector(".seed-preview img");
@@ -18,6 +23,8 @@ let moneyInCents = 500;
 const seedCostInCents = 100;
 const seedUpgradeCostInCents = 50;
 const dayCycleDuration = 60 * 1000;
+const saveStorageKey = "tree-planting-game-save";
+const saveVersion = 1;
 const standardFreeUpgradeIntervalInDays = 3;
 const growthStages = [
     { name: "Seed", image: "images/seed.png", earningInCents: 10 },
@@ -63,6 +70,7 @@ let elapsedCycleTime = 0;
 let previousFrameTime = performance.now();
 let clockSpeed = 1;
 let clockPaused = false;
+let gameStarted = false;
 const sideLength = 6;
 const radius = 24;
 const centerX = 230;
@@ -71,6 +79,126 @@ const svgNamespace = "http://www.w3.org/2000/svg";
 const availableTiles = [];
 const plantedSeeds = [];
 let selectedSeed = null;
+let savedGameData = null;
+let hasStoredSave = false;
+
+function saveGame() {
+    if (!gameStarted) return;
+
+    const saveData = {
+        version: saveVersion,
+        moneyInCents,
+        elapsedCycleTime,
+        clockSpeed,
+        seeds: plantedSeeds.map((seed) => ({
+            x: seed.x,
+            y: seed.y,
+            stageIndex: seed.stageIndex,
+            upgradesInStage: seed.upgradesInStage,
+            nextFreeUpgradeAtCycleTime: seed.nextFreeUpgradeAtCycleTime,
+        })),
+    };
+
+    try {
+        localStorage.setItem(saveStorageKey, JSON.stringify(saveData));
+        hasStoredSave = true;
+        saveStatus.textContent = "";
+    } catch (error) {
+        saveStatus.textContent = "Unable to save progress in this browser.";
+        console.error("Could not save game progress.", error);
+    }
+}
+
+function readSavedGame() {
+    let serializedSave;
+    try {
+        serializedSave = localStorage.getItem(saveStorageKey);
+    } catch (error) {
+        saveSlotSummary.textContent =
+            "Saved games are unavailable in this browser.";
+        saveStatus.textContent = "Unable to access browser storage.";
+        console.error("Could not access saved game.", error);
+        return;
+    }
+
+    if (!serializedSave) {
+        saveSlotSummary.textContent = "Empty slot. Start a new game to begin.";
+        continueGameButton.hidden = true;
+        hasStoredSave = false;
+        return;
+    }
+
+    hasStoredSave = true;
+    try {
+        savedGameData = JSON.parse(serializedSave);
+    } catch (error) {
+        saveSlotSummary.textContent =
+            "This save slot could not be read. Starting a new game will replace it.";
+        continueGameButton.hidden = true;
+        console.error("Saved game data is not valid JSON.", error);
+        return;
+    }
+
+    if (!isValidSaveData(savedGameData)) {
+        saveSlotSummary.textContent =
+            "This save slot is invalid. Starting a new game will replace it.";
+        savedGameData = null;
+        continueGameButton.hidden = true;
+        return;
+    }
+
+    const balance = (savedGameData.moneyInCents / 100).toFixed(2);
+    saveSlotSummary.textContent =
+        `Balance: $${balance} · Trees: ${savedGameData.seeds.length}`;
+    continueGameButton.hidden = false;
+}
+
+function isValidSaveData(data) {
+    if (
+        !data ||
+        typeof data !== "object" ||
+        data.version !== saveVersion ||
+        !Number.isFinite(data.moneyInCents) ||
+        data.moneyInCents < 0 ||
+        !Number.isFinite(data.elapsedCycleTime) ||
+        data.elapsedCycleTime < 0 ||
+        ![1, 3].includes(data.clockSpeed) ||
+        !Array.isArray(data.seeds) ||
+        data.seeds.length > availableTiles.length
+    ) {
+        return false;
+    }
+
+    const occupiedPositions = new Set();
+    return data.seeds.every((seed) => {
+        if (
+            !seed ||
+            !Number.isFinite(seed.x) ||
+            !Number.isFinite(seed.y) ||
+            !Number.isInteger(seed.stageIndex) ||
+            seed.stageIndex < 0 ||
+            seed.stageIndex > maximumGrowthStage ||
+            !Number.isInteger(seed.upgradesInStage) ||
+            seed.upgradesInStage < 0 ||
+            seed.upgradesInStage >= upgradesPerGrowthStage ||
+            !Number.isFinite(seed.nextFreeUpgradeAtCycleTime) ||
+            seed.nextFreeUpgradeAtCycleTime < 0
+        ) {
+            return false;
+        }
+
+        const tileIndex = availableTiles.findIndex(
+            (tile) => Math.abs(tile.x - seed.x) < 0.001 &&
+                Math.abs(tile.y - seed.y) < 0.001
+        );
+        if (tileIndex < 0) return false;
+
+        const positionKey = `${tileIndex}`;
+        if (occupiedPositions.has(positionKey)) return false;
+        occupiedPositions.add(positionKey);
+        return true;
+    });
+}
 
 function countCycleTicks(cycleTime, tickTimes) {
     const completedCycles = Math.floor(cycleTime / dayCycleDuration);
@@ -85,6 +213,35 @@ function countCycleTicks(cycleTime, tickTimes) {
 function updateMoneyDisplay() {
     moneyAmount.textContent = (moneyInCents / 100).toString();
     plantButton.disabled = moneyInCents < seedCostInCents || availableTiles.length === 0;
+}
+
+function addPlantedSeed(seedData) {
+    const tileIndex = availableTiles.findIndex(
+        (tile) => Math.abs(tile.x - seedData.x) < 0.001 &&
+            Math.abs(tile.y - seedData.y) < 0.001
+    );
+    if (tileIndex < 0) {
+        throw new Error("The save refers to a tile that is not available.");
+    }
+
+    availableTiles.splice(tileIndex, 1);
+    const image = document.createElementNS(svgNamespace, "image");
+    const seedState = { ...seedData, image };
+
+    image.setAttribute("class", "planted-seed");
+    updateSeedAppearance(seedState);
+    image.addEventListener("mouseenter", () => openSeedDialog(seedState));
+    image.addEventListener("mouseleave", () => closeSeedDialog(seedState));
+    image.addEventListener("click", () => upgradeSeed(seedState));
+    image.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            upgradeSeed(seedState);
+        }
+    });
+    tiles.append(image);
+    plantedSeeds.push(seedState);
+    return seedState;
 }
 
 function getSeedUpgradeCost(seedState) {
@@ -179,6 +336,7 @@ function advanceSeedGrowth(seedState, upgradeTime = elapsedCycleTime) {
     if (selectedSeed === seedState) {
         updateSeedDialog();
     }
+    saveGame();
 }
 
 function closeSeedDialog(seedState) {
@@ -235,10 +393,64 @@ function updateDaylightClock(frameTime) {
     requestAnimationFrame(updateDaylightClock);
 }
 
+function startGame() {
+    if (!gameStarted) {
+        gameStarted = true;
+        previousFrameTime = performance.now();
+        requestAnimationFrame(updateDaylightClock);
+        window.setInterval(saveGame, 1000);
+    }
+    saveSlotDialog.close();
+    saveGame();
+}
+
+function continueGame() {
+    if (!savedGameData || !isValidSaveData(savedGameData)) return;
+
+    moneyInCents = savedGameData.moneyInCents;
+    elapsedCycleTime = savedGameData.elapsedCycleTime;
+    clockSpeed = savedGameData.clockSpeed;
+    clockSpeedButton.setAttribute("aria-pressed", String(clockSpeed === 3));
+    savedGameData.seeds.forEach(addPlantedSeed);
+    updateMoneyDisplay();
+    startGame();
+}
+
+function startNewGame() {
+    if (
+        hasStoredSave &&
+        !window.confirm("Start a new game and replace the saved progress?")
+    ) {
+        return;
+    }
+
+    try {
+        localStorage.removeItem(saveStorageKey);
+    } catch (error) {
+        saveStatus.textContent = "Unable to clear the previous save.";
+        console.error("Could not clear previous saved game.", error);
+    }
+
+    savedGameData = null;
+    hasStoredSave = false;
+    moneyInCents = 500;
+    elapsedCycleTime = 0;
+    clockSpeed = 1;
+    clockPaused = false;
+    clockSpeedButton.setAttribute("aria-pressed", "false");
+    pauseClockButton.textContent = "⏸";
+    pauseClockButton.setAttribute("aria-label", "Pause daylight clock");
+    pauseClockButton.setAttribute("aria-pressed", "false");
+    pauseClockButton.title = "Pause";
+    updateMoneyDisplay();
+    startGame();
+}
+
 clockSpeedButton.addEventListener("click", () => {
     const tripleSpeedEnabled = clockSpeedButton.getAttribute("aria-pressed") !== "true";
     clockSpeed = tripleSpeedEnabled ? 3 : 1;
     clockSpeedButton.setAttribute("aria-pressed", String(tripleSpeedEnabled));
+    saveGame();
 });
 
 pauseClockButton.addEventListener("click", () => {
@@ -247,43 +459,30 @@ pauseClockButton.addEventListener("click", () => {
     pauseClockButton.setAttribute("aria-label", `${clockPaused ? "Resume" : "Pause"} daylight clock`);
     pauseClockButton.setAttribute("aria-pressed", String(clockPaused));
     pauseClockButton.title = clockPaused ? "Resume" : "Pause";
+    saveGame();
 });
 
-requestAnimationFrame(updateDaylightClock);
+continueGameButton.addEventListener("click", continueGame);
+newGameButton.addEventListener("click", startNewGame);
+window.addEventListener("beforeunload", saveGame);
 
 plantButton.addEventListener("click", () => {
     if (moneyInCents < seedCostInCents || availableTiles.length === 0) return;
 
-    const tileIndex = Math.floor(Math.random() * availableTiles.length);
-    const { x, y } = availableTiles.splice(tileIndex, 1)[0];
-    const seed = document.createElementNS(svgNamespace, "image");
-
-    seed.setAttribute("class", "planted-seed");
-    const seedState = {
-        image: seed,
+    const { x, y } = availableTiles[
+        Math.floor(Math.random() * availableTiles.length)
+    ];
+    addPlantedSeed({
         x,
         y,
         stageIndex: 0,
         upgradesInStage: 0,
         nextFreeUpgradeAtCycleTime:
             elapsedCycleTime + getFreeUpgradeInterval(0),
-    };
-
-    updateSeedAppearance(seedState);
-    seed.addEventListener("mouseenter", () => openSeedDialog(seedState));
-    seed.addEventListener("mouseleave", () => closeSeedDialog(seedState));
-    seed.addEventListener("click", () => upgradeSeed(seedState));
-    seed.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            upgradeSeed(seedState);
-        }
     });
-    tiles.append(seed);
-    plantedSeeds.push(seedState);
-
     moneyInCents -= seedCostInCents;
     updateMoneyDisplay();
+    saveGame();
 });
 
 for (let q = -(sideLength - 1); q < sideLength; q += 1) {
@@ -304,3 +503,6 @@ for (let q = -(sideLength - 1); q < sideLength; q += 1) {
         availableTiles.push({ x, y });
     }
 }
+
+readSavedGame();
+saveSlotDialog.showModal();

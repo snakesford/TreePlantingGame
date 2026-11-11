@@ -37,12 +37,21 @@
       </div>
     </aside>
   </header>
+  <output class="save-status" role="status" aria-live="polite"></output>
   <main aria-label="A large green hexagon made from smaller hexagons, with six along each side">
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
       <g class="hex-tiles"></g>
     </svg>
   </main>
   <button class="plant-button" type="button">Plant Seed $1</button>
+  <dialog class="save-slot-dialog" aria-labelledby="save-slot-title">
+    <h1 id="save-slot-title">Save Slot 1</h1>
+    <p class="save-slot-summary"></p>
+    <div class="save-slot-actions">
+      <button class="continue-game-button" type="button">Continue</button>
+      <button class="new-game-button" type="button">Start New Game</button>
+    </div>
+  </dialog>
   <dialog class="seed-dialog" aria-labelledby="seed-dialog-title">
     <h2 id="seed-dialog-title">Seed</h2>
     <div class="seed-preview-section">
