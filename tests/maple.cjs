@@ -8,6 +8,8 @@ class Element {
         this.events = {};
         this.style = { setProperty() {} };
         this.classList = { add() {} };
+        this.offsetWidth = 340;
+        this.offsetHeight = 220;
     }
     setAttribute(key, value) { this.attrs[key] = value; }
     getAttribute(key) { return this.attrs[key]; }
@@ -17,6 +19,7 @@ class Element {
     show() { this.open = true; }
     showModal() { this.open = true; }
     close() { this.open = false; }
+    getBoundingClientRect() { return { left: 400, top: 400, width: 30, height: 30 }; }
 }
 
 function game(saved = null) {
@@ -30,7 +33,7 @@ function game(saved = null) {
             },
             createElementNS: () => new Element(),
         },
-        window: { addEventListener() {}, setInterval() {} },
+        window: { addEventListener() {}, setInterval() {}, innerWidth: 1000, innerHeight: 800 },
         localStorage: {
             getItem: key => storage.get(key) ?? null,
             setItem: (key, value) => storage.set(key, value),
@@ -260,10 +263,23 @@ for (const type of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
         const width = sizing.run('plantedSeeds.at(-1).image.getAttribute("width")');
         assert.ok(width > previousSize, 'Every upgrade should increase image size');
         // At each square corner: |y| + |x| / sqrt(3) must stay inside the hex.
-        assert.ok(width / 2 * (1 + 1 / Math.sqrt(3)) <= 22 + 1e-9);
+        assert.ok(width / 2 * (1 + 1 / Math.sqrt(3)) <= 22.75 + 1e-9);
         assert.equal(sizing.run('plantedSeeds.at(-1).image.getAttribute("x") + plantedSeeds.at(-1).image.getAttribute("width") / 2 - plantedSeeds.at(-1).x'), 0);
         previousSize = width;
         sizing.run('upgradeSeed(plantedSeeds.at(-1))');
     }
 }
 console.log('All tree images grow with each upgrade and remain centered inside their hex.');
+
+const hover = game();
+hover.run('plantSeed(); openSeedDialog(plantedSeeds[0], { clientX: 500, clientY: 500 })');
+assert.equal(hover.elements.get('.seed-dialog').style.left, '330px');
+assert.equal(hover.elements.get('.seed-dialog').style.top, '232px');
+hover.run('plantedSeeds[0].image.events.mousemove({ clientX: 990, clientY: 10 })');
+assert.equal(hover.elements.get('.seed-dialog').style.left, '652px');
+assert.equal(hover.elements.get('.seed-dialog').style.top, '8px');
+hover.run('addTileObstacle(0, 0, "rock"); openObstacleDialog("0,0", { clientX: 500, clientY: 500 })');
+assert.equal(hover.elements.get('.obstacle-dialog').style.left, '330px');
+assert.equal(hover.elements.get('.obstacle-dialog').style.top, '232px');
+assert.equal(hover.elements.get('.seed-dialog').open, false);
+console.log('Tree and obstacle hover cards position above the cursor and clamp to screen edges.');

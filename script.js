@@ -166,7 +166,7 @@ let gameStarted = false;
 const sideLength = 6;
 const radius = 24;
 // Largest centered square inside a pointy-top hex, with room for its border.
-const maximumTileImageSize = 2 * (radius - 2) / (1 + 1 / Math.sqrt(3));
+const maximumTileImageSize = 2 * (radius - 1.25) / (1 + 1 / Math.sqrt(3));
 const centerX = 230;
 const centerY = 205;
 const svgNamespace = "http://www.w3.org/2000/svg";
@@ -408,7 +408,24 @@ function getTileKey(q, r) {
     return `${q},${r}`;
 }
 
-function openObstacleDialog(key) {
+function positionHoverDialog(dialog, element, event) {
+    const bounds = element.getBoundingClientRect();
+    const cursorX = event?.clientX ?? bounds.left + bounds.width / 2;
+    const cursorY = event?.clientY ?? bounds.top;
+    const margin = 8;
+    const left = Math.max(margin, Math.min(
+        cursorX - dialog.offsetWidth / 2,
+        window.innerWidth - dialog.offsetWidth - margin
+    ));
+    const top = Math.max(margin, Math.min(
+        cursorY - dialog.offsetHeight - 48,
+        window.innerHeight - dialog.offsetHeight - margin
+    ));
+    dialog.style.left = `${left}px`;
+    dialog.style.top = `${top}px`;
+}
+
+function openObstacleDialog(key, event) {
     const obstacle = tileObstacles.get(key);
     if (!obstacle) return;
     closeSeedDialog(selectedSeed);
@@ -420,6 +437,7 @@ function openObstacleDialog(key) {
     obstacleDescription.textContent =
         `Click to remove for $${(obstacle.clearCostInCents / 100).toFixed(2)}.`;
     if (!obstacleDialog.open) obstacleDialog.show();
+    positionHoverDialog(obstacleDialog, obstacle.element, event);
 }
 
 function closeObstacleDialog(key) {
@@ -442,7 +460,7 @@ function addTileObstacle(q, r, obstacleType = null) {
     const obstacleImage = document.createElementNS(svgNamespace, "image");
     const obstacleSize = Math.min(maximumTileImageSize,
         definition.key === "boulder" ? 36 :
-        definition.key === "rock" ? 24 : 30);
+        definition.key === "rock" ? 27 : 30);
 
     obstacleImage.setAttribute("class", "tile-obstacle");
     obstacleImage.setAttribute("href", definition.image);
@@ -456,7 +474,10 @@ function addTileObstacle(q, r, obstacleType = null) {
     );
     obstacleImage.setAttribute("role", "button");
     obstacleImage.setAttribute("tabindex", "0");
-    obstacleImage.addEventListener("mouseenter", () => openObstacleDialog(key));
+    obstacleImage.addEventListener("mouseenter", (event) => openObstacleDialog(key, event));
+    obstacleImage.addEventListener("mousemove", (event) => {
+        if (selectedObstacle === key) positionHoverDialog(obstacleDialog, obstacleImage, event);
+    });
     obstacleImage.addEventListener("mouseleave", () => closeObstacleDialog(key));
     obstacleImage.addEventListener("focus", () => openObstacleDialog(key));
     obstacleImage.addEventListener("blur", () => closeObstacleDialog(key));
@@ -581,7 +602,10 @@ function addPlantedSeed(seedData) {
 
     image.setAttribute("class", "planted-seed");
     updateSeedAppearance(seedState);
-    image.addEventListener("mouseenter", () => openSeedDialog(seedState));
+    image.addEventListener("mouseenter", (event) => openSeedDialog(seedState, event));
+    image.addEventListener("mousemove", (event) => {
+        if (selectedSeed === seedState) positionHoverDialog(seedDialog, image, event);
+    });
     image.addEventListener("mouseleave", () => closeSeedDialog(seedState));
     image.addEventListener("click", () => upgradeSeed(seedState));
     image.addEventListener("keydown", (event) => {
@@ -612,7 +636,7 @@ function updateSeedAppearance(seedState) {
         (seedState.stageIndex + seedState.upgradesInStage / getUpgradesPerStage(seedState)) /
         maximumGrowthStage
     );
-    const minimumSize = maximumTileImageSize * 0.5;
+    const minimumSize = maximumTileImageSize * 0.7;
     const size = minimumSize + (maximumTileImageSize - minimumSize) * growthProgress;
     const stage = getGrowthStage(seedState);
 
@@ -658,13 +682,14 @@ function updateSeedDialog() {
         : `$${(getSeedUpgradeCost(selectedSeed) / 100).toFixed(2)}`;
 }
 
-function openSeedDialog(seedState) {
+function openSeedDialog(seedState, event) {
     closeObstacleDialog(selectedObstacle);
     selectedSeed = seedState;
     updateSeedDialog();
     if (!seedDialog.open) {
         seedDialog.show();
     }
+    positionHoverDialog(seedDialog, seedState.image, event);
 }
 
 function upgradeSeed(seedState) {
