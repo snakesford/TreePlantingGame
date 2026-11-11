@@ -20,7 +20,7 @@ const seedDescription = document.querySelector(".sprout-description");
 const seedProgressBar = document.querySelector(".seed-progress-bar");
 const seedProgressCount = document.querySelector(".seed-progress-count");
 const seedUpgradeCost = document.querySelector(".seed-upgrade-cost");
-let moneyInCents = 500;
+let moneyInCents = 9999;
 const seedCostInCents = 100;
 const tileCostInCents = 2500;
 const seedUpgradeCostInCents = 50;
@@ -538,7 +538,7 @@ function startNewGame() {
 
     savedGameData = null;
     hasStoredSave = false;
-    moneyInCents = 500;
+    moneyInCents = moneyInCents;
     elapsedCycleTime = 0;
     clockSpeed = 1;
     clockPaused = false;
