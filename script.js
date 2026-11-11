@@ -1,6 +1,5 @@
 const tiles = document.querySelector(".hex-tiles");
 const moneyAmount = document.querySelector(".money-amount");
-const plantButton = document.querySelector(".plant-button");
 const plantMapleButton = document.querySelector(".plant-maple-button");
 const plantBirchButton = document.querySelector(".plant-birch-button");
 const plantSpruceButton = document.querySelector(".plant-spruce-button");
@@ -390,10 +389,10 @@ function countCycleTicks(cycleTime, tickTimes) {
 
 function updateMoneyDisplay() {
     moneyAmount.textContent = (moneyInCents / 100).toString();
-    plantButton.disabled = moneyInCents < seedCostInCents || availableTiles.length === 0;
-    plantMapleButton.disabled = plantButton.disabled;
-    plantBirchButton.disabled = plantButton.disabled;
-    plantSpruceButton.disabled = plantButton.disabled;
+    const cannotPlantSeed = moneyInCents < seedCostInCents || availableTiles.length === 0;
+    plantMapleButton.disabled = cannotPlantSeed;
+    plantBirchButton.disabled = cannotPlantSeed;
+    plantSpruceButton.disabled = cannotPlantSeed;
     plantOakButton.disabled = moneyInCents < oakSeedCostInCents || availableTiles.length === 0;
     buyTileButton.disabled = moneyInCents < tileCostInCents;
 }
@@ -895,7 +894,8 @@ continueGameButton.addEventListener("click", continueGame);
 newGameButton.addEventListener("click", startNewGame);
 window.addEventListener("beforeunload", saveGame);
 
-function plantSeed(treeType = "standard") {
+function plantSeed(treeType = "maple") {
+    if (!["maple", "birch", "spruce", "oak"].includes(treeType)) return;
     const plantingCost = treeType === "oak" ? oakSeedCostInCents : seedCostInCents;
     if (moneyInCents < plantingCost || availableTiles.length === 0) return;
 
@@ -916,7 +916,6 @@ function plantSeed(treeType = "standard") {
     saveGame();
 }
 
-plantButton.addEventListener("click", () => plantSeed());
 plantMapleButton.addEventListener("click", () => plantSeed("maple"));
 plantBirchButton.addEventListener("click", () => plantSeed("birch"));
 plantSpruceButton.addEventListener("click", () => plantSeed("spruce"));

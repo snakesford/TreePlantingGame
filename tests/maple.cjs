@@ -262,7 +262,7 @@ for (const treeType of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
 console.log('Retired-stage save migration and Mature growth cap passed for all five tree types.');
 
 const sizing = game();
-for (const type of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
+for (const type of ['maple', 'birch', 'spruce', 'oak']) {
     sizing.run(`plantSeed('${type}')`);
     let previousSize = 0;
     for (let upgrade = 0; upgrade <= 20; upgrade++) {
@@ -303,7 +303,7 @@ assert.equal(currency.elements.get('.obstacle-description').textContent, 'Click 
 assert.equal(currency.elements.get('.obstacle-description').children[1].src, 'images/leaf.png');
 console.log('Leaf currency icons render in dynamic costs and earnings.');
 
-for (const type of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
+for (const type of ['maple', 'birch', 'spruce', 'oak']) {
     for (let stage = 0; stage <= 5; stage++) {
         const compost = game();
         const initialTiles = compost.run('availableTiles.length');
@@ -332,3 +332,11 @@ for (const type of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
     }
 }
 console.log('Right-click composting rewards, tile reuse, duplicate protection, and persistence passed for all tree types and stages.');
+
+const removedBaseSeed = game();
+removedBaseSeed.run('plantSeed("standard")');
+assert.equal(removedBaseSeed.run('plantedSeeds.length'), 0);
+removedBaseSeed.run('plantSeed()');
+assert.equal(removedBaseSeed.run('plantedSeeds[0].treeType'), 'maple');
+assert.ok(!fs.readFileSync(require('node:path').join(__dirname, '../index.html'), 'utf8').includes('class="plant-button"'));
+console.log('Base seed purchase removed; default planting uses maple.');
