@@ -20,7 +20,7 @@ const seedDescription = document.querySelector(".sprout-description");
 const seedProgressBar = document.querySelector(".seed-progress-bar");
 const seedProgressCount = document.querySelector(".seed-progress-count");
 const seedUpgradeCost = document.querySelector(".seed-upgrade-cost");
-let moneyInCents = 9999;
+let moneyInCents = 9999999;
 const seedCostInCents = 100;
 const tileCostInCents = 2500;
 const seedUpgradeCostInCents = 50;
@@ -88,7 +88,14 @@ const availableTiles = [];
 const boardTileCoordinates = [];
 const boardTileKeys = new Set();
 const purchasedTileCoordinates = [];
+const tileObstacles = new Map();
 const plantedSeeds = [];
+const tileObstacleDefinitions = [
+    { key: "rock", image: "images/rock.png", clearCostInCents: 1000, label: "rock" },
+    { key: "boulder", image: "images/boulder.png", clearCostInCents: 3000, label: "boulder" },
+    { key: "burnt-tree", image: "images/burnt-tree.png", clearCostInCents: 2500, label: "burnt tree" },
+];
+const tileObstacleChance = 0.2;
 let selectedSeed = null;
 let savedGameData = null;
 let hasStoredSave = false;
@@ -102,6 +109,11 @@ function saveGame() {
         elapsedCycleTime,
         clockSpeed,
         additionalTiles: purchasedTileCoordinates.map(({ q, r }) => ({ q, r })),
+        obstacles: Array.from(tileObstacles.values()).map(({ q, r, key }) => ({
+            q,
+            r,
+            type: key,
+        })),
         seeds: plantedSeeds.map((seed) => ({
             x: seed.x,
             y: seed.y,
@@ -177,14 +189,30 @@ function isValidSaveData(data) {
         ![1, 3].includes(data.clockSpeed) ||
         !Array.isArray(data.seeds) ||
         (data.additionalTiles !== undefined &&
-            !Array.isArray(data.additionalTiles))
+            !Array.isArray(data.additionalTiles)) ||
+        (data.obstacles !== undefined && !Array.isArray(data.obstacles))
     ) {
         return false;
     }
 
+    const obstacleTypes = new Set(
+        tileObstacleDefinitions.map((obstacle) => obstacle.key)
+    );
     const additionalTiles = data.additionalTiles ?? [];
+    const obstacleTiles = data.obstacles ?? [];
     const knownTileKeys = new Set(boardTileKeys);
     const tilePositions = availableTiles.map(({ x, y }) => ({ x, y }));
+    for (const obstacle of obstacleTiles) {
+        if (
+            !obstacle ||
+            !Number.isInteger(obstacle.q) ||
+            !Number.isInteger(obstacle.r) ||
+            !obstacleTypes.has(obstacle.type) ||
+            !knownTileKeys.has(`${obstacle.q},${obstacle.r}`)
+        ) {
+            return false;
+        }
+    }
     for (const tile of additionalTiles) {
         if (
             !tile ||
@@ -273,8 +301,101 @@ function getTileCenter(q, r) {
     };
 }
 
+function getTileKey(q, r) {
+    return `${q},${r}`;
+}
+
+function addTileObstacle(q, r, obstacleType = null) {
+    const key = getTileKey(q, r);
+    if (tileObstacles.has(key)) return false;
+
+    const definition = obstacleType
+        ? tileObstacleDefinitions.find((tileObstacle) => tileObstacle.key === obstacleType)
+        : tileObstacleDefinitions[Math.floor(Math.random() * tileObstacleDefinitions.length)];
+
+    if (!definition) return false;
+
+    const { x, y } = getTileCenter(q, r);
+    const obstacleImage = document.createElementNS(svgNamespace, "image");
+    const obstacleSize =
+        definition.key === "boulder" ? 36 :
+        definition.key === "rock" ? 24 : 30;
+
+    obstacleImage.setAttribute("class", "tile-obstacle");
+    obstacleImage.setAttribute("href", definition.image);
+    obstacleImage.setAttribute("x", x - obstacleSize / 2);
+    obstacleImage.setAttribute("y", y - obstacleSize / 2);
+    obstacleImage.setAttribute("width", obstacleSize);
+    obstacleImage.setAttribute("height", obstacleSize);
+    obstacleImage.setAttribute(
+        "aria-label",
+        `Clear ${definition.label} for $${(definition.clearCostInCents / 100).toFixed(2)}.`
+    );
+    obstacleImage.setAttribute("role", "button");
+    obstacleImage.setAttribute("tabindex", "0");
+    obstacleImage.addEventListener("click", (event) => {
+        event.stopPropagation();
+        clearTileObstacle(q, r);
+    });
+    obstacleImage.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            clearTileObstacle(q, r);
+        }
+    });
+    tiles.append(obstacleImage);
+
+    tileObstacles.set(key, { ...definition, q, r, element: obstacleImage });
+    const availableTileIndex = availableTiles.findIndex(
+        (tile) => Math.abs(tile.x - x) < 0.001 && Math.abs(tile.y - y) < 0.001
+    );
+    if (availableTileIndex >= 0) {
+        availableTiles.splice(availableTileIndex, 1);
+    }
+    return true;
+}
+
+function clearTileObstacle(q, r) {
+    const key = getTileKey(q, r);
+    const obstacle = tileObstacles.get(key);
+    if (!obstacle) return false;
+    if (moneyInCents < obstacle.clearCostInCents) return false;
+
+    moneyInCents -= obstacle.clearCostInCents;
+    obstacle.element.remove();
+    tileObstacles.delete(key);
+
+    const { x, y } = getTileCenter(q, r);
+    availableTiles.push({ q, r, x, y });
+    updateMoneyDisplay();
+    saveGame();
+    return true;
+}
+
+function spawnRandomTileObstacles() {
+    boardTileCoordinates.forEach(({ q, r }) => {
+        if (tileObstacles.has(getTileKey(q, r))) return;
+        if (Math.random() < tileObstacleChance) {
+            addTileObstacle(q, r);
+        }
+    });
+}
+
+function restoreSavedTileObstacles(obstacles = []) {
+    obstacles.forEach(({ q, r, type }) => {
+        if (
+            !Number.isInteger(q) ||
+            !Number.isInteger(r) ||
+            !boardTileKeys.has(getTileKey(q, r))
+        ) {
+            return;
+        }
+        addTileObstacle(q, r, type);
+    });
+}
+
 function addBoardTile(q, r, isPurchased = false) {
-    const key = `${q},${r}`;
+    const key = getTileKey(q, r);
     if (boardTileKeys.has(key)) return false;
 
     const { x, y } = getTileCenter(q, r);
@@ -516,6 +637,7 @@ function continueGame() {
     (savedGameData.additionalTiles ?? []).forEach(({ q, r }) => {
         addBoardTile(q, r, true);
     });
+    restoreSavedTileObstacles(savedGameData.obstacles ?? []);
     savedGameData.seeds.forEach(addPlantedSeed);
     updateMoneyDisplay();
     startGame();
@@ -542,6 +664,7 @@ function startNewGame() {
     elapsedCycleTime = 0;
     clockSpeed = 1;
     clockPaused = false;
+    spawnRandomTileObstacles();
     clockSpeedButton.setAttribute("aria-pressed", "false");
     pauseClockButton.textContent = "⏸";
     pauseClockButton.setAttribute("aria-label", "Pause daylight clock");
@@ -608,6 +731,9 @@ buyTileButton.addEventListener("click", () => {
 
     const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
     addBoardTile(q, r, true);
+    if (Math.random() < tileObstacleChance) {
+        addTileObstacle(q, r);
+    }
     moneyInCents -= tileCostInCents;
     updateMoneyDisplay();
     saveGame();
