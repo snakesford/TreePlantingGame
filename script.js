@@ -186,6 +186,16 @@ let selectedSeed = null;
 let savedGameData = null;
 let hasStoredSave = false;
 
+function showLeafAmount(element, amount, prefix = "", suffix = "") {
+    const icon = document.createElement("img");
+    icon.className = "currency-icon";
+    icon.src = "images/leaf.png";
+    icon.alt = "leaves";
+    icon.width = 20;
+    icon.height = 20;
+    element.replaceChildren(prefix, icon, amount, suffix);
+}
+
 function saveGame() {
     if (!gameStarted) return;
 
@@ -270,8 +280,7 @@ function readSavedGame() {
     }
 
     const balance = (savedGameData.moneyInCents / 100).toFixed(2);
-    saveSlotSummary.textContent =
-        `Balance: $${balance} · Trees: ${savedGameData.seeds.length}`;
+    showLeafAmount(saveSlotSummary, balance, "Balance: ", ` · Trees: ${savedGameData.seeds.length}`);
     continueGameButton.hidden = false;
 }
 
@@ -434,8 +443,7 @@ function openObstacleDialog(key, event) {
     obstacleDialogTitle.textContent = name;
     obstaclePreviewImage.src = obstacle.image;
     obstaclePreviewImage.alt = name;
-    obstacleDescription.textContent =
-        `Click to remove for $${(obstacle.clearCostInCents / 100).toFixed(2)}.`;
+    showLeafAmount(obstacleDescription, (obstacle.clearCostInCents / 100).toFixed(2), "Click to remove for ", ".");
     if (!obstacleDialog.open) obstacleDialog.show();
     positionHoverDialog(obstacleDialog, obstacle.element, event);
 }
@@ -470,7 +478,7 @@ function addTileObstacle(q, r, obstacleType = null) {
     obstacleImage.setAttribute("height", obstacleSize);
     obstacleImage.setAttribute(
         "aria-label",
-        `Clear ${definition.label} for $${(definition.clearCostInCents / 100).toFixed(2)}.`
+        `Clear ${definition.label} for ${(definition.clearCostInCents / 100).toFixed(2)} leaves.`
     );
     obstacleImage.setAttribute("role", "button");
     obstacleImage.setAttribute("tabindex", "0");
@@ -664,12 +672,12 @@ function updateSeedDialog() {
     seedDialogTitle.textContent = stage.name;
     seedPreviewImage.src = stage.image;
     seedPreviewImage.alt = stage.name;
-    const earningPerPayout = `$${(stage.earningInCents / 100).toFixed(2)}`;
+    const earningPerPayout = (stage.earningInCents / 100).toFixed(2);
     const freeUpgradeIntervalInDays =
         getFreeUpgradeInterval(selectedSeed) / dayCycleDuration;
-    seedDescription.textContent = isFullyGrown
-        ? `Earns ${earningPerPayout} per payout.`
-        : `Earns ${earningPerPayout} per payout. Click to upgrade; free growth every ${freeUpgradeIntervalInDays} days.`;
+    showLeafAmount(seedDescription, earningPerPayout, "Earns ", isFullyGrown
+        ? " per payout."
+        : ` per payout. Click to upgrade; free growth every ${freeUpgradeIntervalInDays} days.`);
     const requiredUpgrades = getUpgradesPerStage(selectedSeed);
     seedProgressBar.max = requiredUpgrades;
     const displayedUpgrades = isFullyGrown
@@ -677,9 +685,11 @@ function updateSeedDialog() {
         : selectedSeed.upgradesInStage;
     seedProgressBar.value = displayedUpgrades;
     seedProgressCount.textContent = `${displayedUpgrades}/${requiredUpgrades}`;
-    seedUpgradeCost.textContent = isFullyGrown
-        ? "Grown"
-        : `$${(getSeedUpgradeCost(selectedSeed) / 100).toFixed(2)}`;
+    if (isFullyGrown) {
+        seedUpgradeCost.textContent = "Grown";
+    } else {
+        showLeafAmount(seedUpgradeCost, (getSeedUpgradeCost(selectedSeed) / 100).toFixed(2));
+    }
 }
 
 function openSeedDialog(seedState, event) {

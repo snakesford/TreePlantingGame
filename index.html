@@ -10,8 +10,8 @@
 
 <body>
   <header class="top-bar">
-    <div class="money-counter" aria-label="Money">
-      <span class="money-label">Money</span>
+    <div class="money-counter" aria-label="Leaves">
+      <img class="currency-icon balance-icon" src="images/leaf.png" alt="Leaves" width="32" height="32" />
       <output class="money-amount" aria-live="polite">5</output>
     </div>
     <aside class="daylight-clock" aria-label="Day and night cycle">
@@ -46,25 +46,25 @@
   <div class="game-actions">
     <button class="plant-button" type="button">
       <img class="seed-button-icon" src="images/seed.png" alt="" width="48" height="48" />
-      <span>Plant Seed $1</span>
+      <span>Plant Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />1</span>
     </button>
     <button class="plant-maple-button" type="button">
       <img class="seed-button-icon" src="images/maple/seed.png" alt="" width="48" height="48" />
-      <span>Plant Maple Seed $1</span>
+      <span>Plant Maple Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />1</span>
     </button>
     <button class="plant-birch-button" type="button">
       <img class="seed-button-icon" src="images/birch/seed.png" alt="" width="48" height="48" />
-      <span>Plant Birch Seed $1</span>
+      <span>Plant Birch Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />1</span>
     </button>
     <button class="plant-spruce-button" type="button">
       <img class="seed-button-icon" src="images/spruce/seed.png" alt="" width="48" height="48" />
-      <span>Plant Spruce Seed $1</span>
+      <span>Plant Spruce Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />1</span>
     </button>
     <button class="plant-oak-button" type="button">
       <img class="seed-button-icon" src="images/oak/seed.png" alt="" width="48" height="48" />
-      <span>Plant Oak Seed $3</span>
+      <span>Plant Oak Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />3</span>
     </button>
-    <button class="buy-tile-button" type="button">Buy Tile $25</button>
+    <button class="buy-tile-button" type="button">Buy Tile <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />25</button>
   </div>
   <dialog class="save-slot-dialog" aria-labelledby="save-slot-title">
     <h1 id="save-slot-title">Save Slot 1</h1>
@@ -87,7 +87,7 @@
         <progress class="seed-progress-bar" max="4" value="0" aria-label="Upgrades in current growth stage"></progress>
         <output class="seed-progress-count" aria-live="polite">0/4</output>
       </div>
-      <span class="seed-upgrade-cost">0.5</span>
+      <span class="seed-upgrade-cost"><img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />0.5</span>
     </div>
   </dialog>
   <dialog class="obstacle-dialog" aria-labelledby="obstacle-dialog-title">

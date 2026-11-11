@@ -14,6 +14,10 @@ class Element {
     setAttribute(key, value) { this.attrs[key] = value; }
     getAttribute(key) { return this.attrs[key]; }
     addEventListener(key, callback) { this.events[key] = callback; }
+    replaceChildren(...children) {
+        this.children = children;
+        this.textContent = children.filter(child => typeof child === "string").join("");
+    }
     append() {}
     prepend() {}
     show() { this.open = true; }
@@ -31,6 +35,7 @@ function game(saved = null) {
                 if (!elements.has(selector)) elements.set(selector, new Element());
                 return elements.get(selector);
             },
+            createElement: () => new Element(),
             createElementNS: () => new Element(),
         },
         window: { addEventListener() {}, setInterval() {}, innerWidth: 1000, innerHeight: 800 },
@@ -52,7 +57,7 @@ assert.equal(g.run('plantedSeeds[0].treeType'), 'maple');
 assert.equal(g.run('moneyInCents'), 9999899);
 g.run('openSeedDialog(plantedSeeds[0])');
 assert.equal(g.elements.get('#seed-dialog-title').textContent, 'Maple Seed');
-assert.equal(g.elements.get('.seed-upgrade-cost').textContent, '$0.50');
+assert.equal(g.elements.get('.seed-upgrade-cost').textContent, '0.50');
 assert.equal(g.elements.get('.seed-progress-bar').max, 4);
 for (const [index, income, cost, days] of [
     [0, 40, 50, 2], [1, 60, 150, 2], [2, 100, 300, 3],
@@ -283,3 +288,16 @@ assert.equal(hover.elements.get('.obstacle-dialog').style.left, '330px');
 assert.equal(hover.elements.get('.obstacle-dialog').style.top, '232px');
 assert.equal(hover.elements.get('.seed-dialog').open, false);
 console.log('Tree and obstacle hover cards position above the cursor and clamp to screen edges.');
+
+const currency = game();
+currency.run('plantSeed(); openSeedDialog(plantedSeeds[0])');
+for (const selector of ['.seed-upgrade-cost', '.sprout-description']) {
+    const icon = currency.elements.get(selector).children.find(child => child instanceof Element);
+    assert.equal(icon.src, 'images/leaf.png');
+    assert.equal(icon.alt, 'leaves');
+    assert.ok(!currency.elements.get(selector).textContent.includes('$'));
+}
+currency.run('addTileObstacle(0, 0, "rock"); openObstacleDialog("0,0")');
+assert.equal(currency.elements.get('.obstacle-description').textContent, 'Click to remove for 10.00.');
+assert.equal(currency.elements.get('.obstacle-description').children[1].src, 'images/leaf.png');
+console.log('Leaf currency icons render in dynamic costs and earnings.');

@@ -30,7 +30,7 @@ body {
 
 .money-counter {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     min-width: 130px;
     padding: 14px 20px;
@@ -40,9 +40,19 @@ body {
     font-family: sans-serif;
 }
 
-.money-label {
-    font-size: 1rem;
-    font-weight: 600;
+.currency-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    vertical-align: middle;
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+.balance-icon {
+    width: 32px;
+    height: 32px;
 }
 
 .money-amount {
