@@ -24,6 +24,7 @@ const seedDescription = document.querySelector(".sprout-description");
 const seedProgressBar = document.querySelector(".seed-progress-bar");
 const seedProgressCount = document.querySelector(".seed-progress-count");
 const seedUpgradeCost = document.querySelector(".seed-upgrade-cost");
+const seedCompostInfo = document.querySelector(".seed-compost-info");
 const obstacleDialog = document.querySelector(".obstacle-dialog");
 const obstacleDialogTitle = document.querySelector("#obstacle-dialog-title");
 const obstaclePreviewImage = document.querySelector(".obstacle-preview img");
@@ -604,9 +605,9 @@ function addPlantedSeed(seedData) {
         throw new Error("The save refers to a tile that is not available.");
     }
 
-    availableTiles.splice(tileIndex, 1);
+    const [tile] = availableTiles.splice(tileIndex, 1);
     const image = document.createElementNS(svgNamespace, "image");
-    const seedState = { ...seedData, treeType: seedData.treeType ?? "standard", image };
+    const seedState = { ...seedData, treeType: seedData.treeType ?? "standard", image, tile };
 
     image.setAttribute("class", "planted-seed");
     updateSeedAppearance(seedState);
@@ -616,6 +617,11 @@ function addPlantedSeed(seedData) {
     });
     image.addEventListener("mouseleave", () => closeSeedDialog(seedState));
     image.addEventListener("click", () => upgradeSeed(seedState));
+    image.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        compostTree(seedState);
+    });
     image.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
@@ -625,6 +631,23 @@ function addPlantedSeed(seedData) {
     tiles.append(image);
     plantedSeeds.push(seedState);
     return seedState;
+}
+
+function getCompostReward(seedState) {
+    return getGrowthStage(seedState).earningInCents * (seedState.stageIndex + 1);
+}
+
+function compostTree(seedState) {
+    const index = plantedSeeds.indexOf(seedState);
+    if (index < 0) return;
+
+    moneyInCents += getCompostReward(seedState);
+    closeSeedDialog(seedState);
+    seedState.image.remove();
+    plantedSeeds.splice(index, 1);
+    availableTiles.push(seedState.tile);
+    updateMoneyDisplay();
+    saveGame();
 }
 
 function getSeedUpgradeCost(seedState) {
@@ -660,6 +683,7 @@ function updateSeedAppearance(seedState) {
             : `${stage.name}, ${seedState.upgradesInStage} of ${getUpgradesPerStage(seedState)} upgrades. Click to upgrade; free upgrade every ${getFreeUpgradeInterval(seedState) / dayCycleDuration} days.`
     );
     seedState.image.setAttribute("role", "button");
+    seedState.image.setAttribute("aria-description", `Right-click to compost for ${seedState.stageIndex + 1} times this stage's earnings per payout.`);
     seedState.image.setAttribute("tabindex", "0");
     seedState.image.classList.add("upgradeable-seed");
 }
@@ -668,6 +692,7 @@ function updateSeedDialog() {
     if (!selectedSeed) return;
 
     const stage = getGrowthStage(selectedSeed);
+    showLeafAmount(seedCompostInfo, (getCompostReward(selectedSeed) / 100).toFixed(2), "Right-click to compost for ", ` (${selectedSeed.stageIndex + 1}× earnings).`);
     const isFullyGrown = selectedSeed.stageIndex === maximumGrowthStage;
     seedDialogTitle.textContent = stage.name;
     seedPreviewImage.src = stage.image;

@@ -388,6 +388,12 @@ main {
     object-fit: contain;
 }
 
+.seed-compost-info {
+    margin: 16px 0 0;
+    color: #526653;
+    font: 0.85rem/1.45 sans-serif;
+}
+
 .sprout-description,
 .obstacle-description {
     margin: 0;

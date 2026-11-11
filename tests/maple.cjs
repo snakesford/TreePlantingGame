@@ -19,6 +19,7 @@ class Element {
         this.textContent = children.filter(child => typeof child === "string").join("");
     }
     append() {}
+    remove() { this.removed = true; }
     prepend() {}
     show() { this.open = true; }
     showModal() { this.open = true; }
@@ -301,3 +302,33 @@ currency.run('addTileObstacle(0, 0, "rock"); openObstacleDialog("0,0")');
 assert.equal(currency.elements.get('.obstacle-description').textContent, 'Click to remove for 10.00.');
 assert.equal(currency.elements.get('.obstacle-description').children[1].src, 'images/leaf.png');
 console.log('Leaf currency icons render in dynamic costs and earnings.');
+
+for (const type of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
+    for (let stage = 0; stage <= 5; stage++) {
+        const compost = game();
+        const initialTiles = compost.run('availableTiles.length');
+        compost.run(`plantSeed('${type}'); plantedSeeds[0].stageIndex = ${stage}; openSeedDialog(plantedSeeds[0]); gameStarted = true`);
+        const reward = compost.run('getGrowthStage(plantedSeeds[0]).earningInCents') * (stage + 1);
+        assert.equal(compost.elements.get('.seed-compost-info').textContent,
+            `Right-click to compost for ${(reward / 100).toFixed(2)} (${stage + 1}× earnings).`);
+        const balance = compost.run('moneyInCents');
+        const tree = compost.run('plantedSeeds[0]');
+        let prevented = false;
+        tree.image.events.contextmenu({ preventDefault() { prevented = true; }, stopPropagation() {} });
+        assert.equal(prevented, true);
+        assert.equal(tree.image.removed, true);
+        assert.equal(compost.run('moneyInCents'), balance + reward);
+        assert.equal(compost.run('plantedSeeds.length'), 0);
+        assert.equal(compost.run('availableTiles.length'), initialTiles);
+        assert.equal(compost.elements.get('.seed-dialog').open, false);
+        tree.image.events.contextmenu({ preventDefault() {}, stopPropagation() {} });
+        assert.equal(compost.run('moneyInCents'), balance + reward);
+        const reloaded = game(compost.storage.get('tree-planting-game-save'));
+        reloaded.run('continueGame()');
+        assert.equal(reloaded.run('plantedSeeds.length'), 0);
+        assert.equal(reloaded.run('moneyInCents'), balance + reward);
+        compost.run('plantSeed()');
+        assert.equal(compost.run('plantedSeeds.length'), 1);
+    }
+}
+console.log('Right-click composting rewards, tile reuse, duplicate protection, and persistence passed for all tree types and stages.');
