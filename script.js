@@ -16,29 +16,48 @@ const seedProgressCount = document.querySelector(".seed-progress-count");
 const seedUpgradeCost = document.querySelector(".seed-upgrade-cost");
 let moneyInCents = 500;
 const seedCostInCents = 100;
-const seedUpgradeCostInCents = 40;
-const dayCycleDuration = 2 * 60 * 1000;
-const freeSeedUpgradeInterval = 3 * dayCycleDuration;
+const seedUpgradeCostInCents = 50;
+const dayCycleDuration = 60 * 1000;
+const standardFreeUpgradeIntervalInDays = 3;
 const growthStages = [
     { name: "Seed", image: "images/seed.png", earningInCents: 10 },
-    { name: "Germination", image: "images/germination.png", earningInCents: 20 },
-    { name: "Sprout", image: "images/sprout.png", earningInCents: 40 },
-    { name: "Seedling", image: "images/seedling.png", earningInCents: 75 },
+    {
+        name: "Germination",
+        image: "images/germination.png",
+        earningInCents: 20,
+        upgradeCostInCents: 150,
+        freeUpgradeIntervalInDays: 5,
+    },
+    {
+        name: "Sprout",
+        image: "images/sprout.png",
+        earningInCents: 40,
+        upgradeCostInCents: 400,
+        freeUpgradeIntervalInDays: 8,
+    },
+    {
+        name: "Seedling",
+        image: "images/seedling.png",
+        earningInCents: 75,
+        upgradeCostInCents: 1000,
+        freeUpgradeIntervalInDays: 12,
+    },
     { name: "Sapling", image: "images/sapling.png", earningInCents: 150 },
-    { name: "Mature Tree", image: "images/mature.png", earningInCents: 300 },
+    {
+        name: "Mature Tree",
+        image: "images/mature.png",
+        earningInCents: 300,
+        upgradeCostInCents: 2500,
+        freeUpgradeIntervalInDays: 18,
+    },
     { name: "Ancient Tree", image: "images/ancient.png", earningInCents: 500 },
 ];
 const upgradesPerGrowthStage = 4;
 const maximumGrowthStage = growthStages.length - 1;
 const daylightDuration = dayCycleDuration / 2;
-const nightDuration = dayCycleDuration - daylightDuration;
-const dayEarningTicks = [
+const earningTicks = [
     0,
-    daylightDuration / 2,
     daylightDuration,
-];
-const nightEarningTicks = [
-    daylightDuration + nightDuration / 2,
 ];
 let elapsedCycleTime = 0;
 let previousFrameTime = performance.now();
@@ -68,6 +87,18 @@ function updateMoneyDisplay() {
     plantButton.disabled = moneyInCents < seedCostInCents || availableTiles.length === 0;
 }
 
+function getSeedUpgradeCost(seedState) {
+    return growthStages[seedState.stageIndex].upgradeCostInCents ??
+        seedUpgradeCostInCents;
+}
+
+function getFreeUpgradeInterval(stageIndex) {
+    const intervalInDays =
+        growthStages[stageIndex].freeUpgradeIntervalInDays ??
+        standardFreeUpgradeIntervalInDays;
+    return intervalInDays * dayCycleDuration;
+}
+
 function updateSeedAppearance(seedState) {
     const size =
         28 + seedState.stageIndex * 8 + seedState.upgradesInStage * 2;
@@ -82,7 +113,7 @@ function updateSeedAppearance(seedState) {
         "aria-label",
         seedState.stageIndex === maximumGrowthStage
             ? `Fully grown ${stage.name.toLowerCase()}.`
-            : `${stage.name}, ${seedState.upgradesInStage} of ${upgradesPerGrowthStage} upgrades. Click to upgrade; free upgrade every 3 days.`
+            : `${stage.name}, ${seedState.upgradesInStage} of ${upgradesPerGrowthStage} upgrades. Click to upgrade; free upgrade every ${getFreeUpgradeInterval(seedState.stageIndex) / dayCycleDuration} days.`
     );
     seedState.image.setAttribute("role", "button");
     seedState.image.setAttribute("tabindex", "0");
@@ -98,9 +129,11 @@ function updateSeedDialog() {
     seedPreviewImage.src = stage.image;
     seedPreviewImage.alt = stage.name;
     const earningPerPayout = `$${(stage.earningInCents / 100).toFixed(2)}`;
+    const freeUpgradeIntervalInDays =
+        getFreeUpgradeInterval(selectedSeed.stageIndex) / dayCycleDuration;
     seedDescription.textContent = isAncientTree
         ? `Earns ${earningPerPayout} per payout.`
-        : `Earns ${earningPerPayout} per payout. Click to upgrade; free growth every 3 days.`;
+        : `Earns ${earningPerPayout} per payout. Click to upgrade; free growth every ${freeUpgradeIntervalInDays} days.`;
     const displayedUpgrades = isAncientTree
         ? upgradesPerGrowthStage
         : selectedSeed.upgradesInStage;
@@ -108,7 +141,7 @@ function updateSeedDialog() {
     seedProgressCount.textContent = `${displayedUpgrades}/${upgradesPerGrowthStage}`;
     seedUpgradeCost.textContent = isAncientTree
         ? "Grown"
-        : (seedUpgradeCostInCents / 100).toString();
+        : (getSeedUpgradeCost(selectedSeed) / 100).toString();
 }
 
 function openSeedDialog(seedState) {
@@ -120,24 +153,27 @@ function openSeedDialog(seedState) {
 }
 
 function upgradeSeed(seedState) {
+    const upgradeCostInCents = getSeedUpgradeCost(seedState);
     if (
         seedState.stageIndex >= maximumGrowthStage ||
-        moneyInCents < seedUpgradeCostInCents
+        moneyInCents < upgradeCostInCents
     ) {
         return;
     }
 
-    moneyInCents -= seedUpgradeCostInCents;
+    moneyInCents -= upgradeCostInCents;
     advanceSeedGrowth(seedState);
     updateMoneyDisplay();
 }
 
-function advanceSeedGrowth(seedState) {
+function advanceSeedGrowth(seedState, upgradeTime = elapsedCycleTime) {
     seedState.upgradesInStage += 1;
     if (seedState.upgradesInStage === upgradesPerGrowthStage) {
         seedState.stageIndex += 1;
         seedState.upgradesInStage = 0;
     }
+    seedState.nextFreeUpgradeAtCycleTime =
+        upgradeTime + getFreeUpgradeInterval(seedState.stageIndex);
 
     updateSeedAppearance(seedState);
     if (selectedSeed === seedState) {
@@ -159,8 +195,7 @@ function applyFreeSeedUpgrades() {
             seed.stageIndex < maximumGrowthStage &&
             elapsedCycleTime >= seed.nextFreeUpgradeAtCycleTime
         ) {
-            advanceSeedGrowth(seed);
-            seed.nextFreeUpgradeAtCycleTime += freeSeedUpgradeInterval;
+            advanceSeedGrowth(seed, seed.nextFreeUpgradeAtCycleTime);
         }
     });
 }
@@ -173,19 +208,14 @@ function updateDaylightClock(frameTime) {
     }
     previousFrameTime = frameTime;
 
-    const daylightTicksPassed =
-        countCycleTicks(elapsedCycleTime, dayEarningTicks) -
-        countCycleTicks(previousElapsedCycleTime, dayEarningTicks);
-    const nightTicksPassed =
-        countCycleTicks(elapsedCycleTime, nightEarningTicks) -
-        countCycleTicks(previousElapsedCycleTime, nightEarningTicks);
+    const payoutsPassed =
+        countCycleTicks(elapsedCycleTime, earningTicks) -
+        countCycleTicks(previousElapsedCycleTime, earningTicks);
     let earnedMoney = 0;
 
     plantedSeeds.forEach((seed) => {
         const earningInCents = growthStages[seed.stageIndex].earningInCents;
-        earnedMoney +=
-            daylightTicksPassed * earningInCents +
-            nightTicksPassed * earningInCents;
+        earnedMoney += payoutsPassed * earningInCents;
     });
 
     if (earnedMoney > 0) {
@@ -235,7 +265,8 @@ plantButton.addEventListener("click", () => {
         y,
         stageIndex: 0,
         upgradesInStage: 0,
-        nextFreeUpgradeAtCycleTime: elapsedCycleTime + freeSeedUpgradeInterval,
+        nextFreeUpgradeAtCycleTime:
+            elapsedCycleTime + getFreeUpgradeInterval(0),
     };
 
     updateSeedAppearance(seedState);

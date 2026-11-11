@@ -170,20 +170,12 @@ body {
     transform-origin: 1px 43px;
 }
 
-.dawn-earning {
+.sunrise-earning {
     transform: rotate(0deg);
-}
-
-.midday-earning {
-    transform: rotate(90deg);
 }
 
 .sunset-earning {
     transform: rotate(180deg);
-}
-
-.night-earning {
-    transform: rotate(270deg);
 }
 
 .sun-marker {
