@@ -20,6 +20,11 @@ const seedDescription = document.querySelector(".sprout-description");
 const seedProgressBar = document.querySelector(".seed-progress-bar");
 const seedProgressCount = document.querySelector(".seed-progress-count");
 const seedUpgradeCost = document.querySelector(".seed-upgrade-cost");
+const obstacleDialog = document.querySelector(".obstacle-dialog");
+const obstacleDialogTitle = document.querySelector("#obstacle-dialog-title");
+const obstaclePreviewImage = document.querySelector(".obstacle-preview img");
+const obstacleDescription = document.querySelector(".obstacle-description");
+let selectedObstacle = null;
 let moneyInCents = 9999999;
 const seedCostInCents = 100;
 const tileCostInCents = 2500;
@@ -305,6 +310,26 @@ function getTileKey(q, r) {
     return `${q},${r}`;
 }
 
+function openObstacleDialog(key) {
+    const obstacle = tileObstacles.get(key);
+    if (!obstacle) return;
+    closeSeedDialog(selectedSeed);
+    selectedObstacle = key;
+    const name = obstacle.label.charAt(0).toUpperCase() + obstacle.label.slice(1);
+    obstacleDialogTitle.textContent = name;
+    obstaclePreviewImage.src = obstacle.image;
+    obstaclePreviewImage.alt = name;
+    obstacleDescription.textContent =
+        `Click to remove for $${(obstacle.clearCostInCents / 100).toFixed(2)}.`;
+    if (!obstacleDialog.open) obstacleDialog.show();
+}
+
+function closeObstacleDialog(key) {
+    if (selectedObstacle !== key) return;
+    if (obstacleDialog.open) obstacleDialog.close();
+    selectedObstacle = null;
+}
+
 function addTileObstacle(q, r, obstacleType = null) {
     const key = getTileKey(q, r);
     if (tileObstacles.has(key)) return false;
@@ -333,6 +358,10 @@ function addTileObstacle(q, r, obstacleType = null) {
     );
     obstacleImage.setAttribute("role", "button");
     obstacleImage.setAttribute("tabindex", "0");
+    obstacleImage.addEventListener("mouseenter", () => openObstacleDialog(key));
+    obstacleImage.addEventListener("mouseleave", () => closeObstacleDialog(key));
+    obstacleImage.addEventListener("focus", () => openObstacleDialog(key));
+    obstacleImage.addEventListener("blur", () => closeObstacleDialog(key));
     obstacleImage.addEventListener("click", (event) => {
         event.stopPropagation();
         clearTileObstacle(q, r);
@@ -362,6 +391,7 @@ function clearTileObstacle(q, r) {
     if (moneyInCents < obstacle.clearCostInCents) return false;
 
     moneyInCents -= obstacle.clearCostInCents;
+    closeObstacleDialog(key);
     obstacle.element.remove();
     tileObstacles.delete(key);
 
@@ -525,6 +555,7 @@ function updateSeedDialog() {
 }
 
 function openSeedDialog(seedState) {
+    closeObstacleDialog(selectedObstacle);
     selectedSeed = seedState;
     updateSeedDialog();
     if (!seedDialog.open) {

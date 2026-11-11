@@ -317,7 +317,8 @@ main {
     font: 0.8rem/1.3 sans-serif;
 }
 
-.seed-dialog {
+.seed-dialog,
+.obstacle-dialog {
     position: fixed;
     inset: 50% auto auto 50%;
     margin: 0;
@@ -331,19 +332,22 @@ main {
     pointer-events: none;
 }
 
-.seed-dialog h2 {
+.seed-dialog h2,
+.obstacle-dialog h2 {
     margin: 0 0 16px;
     text-align: center;
 }
 
-.seed-preview-section {
+.seed-preview-section,
+.obstacle-preview-section {
     display: flex;
     align-items: center;
     gap: 14px;
     margin: 0 auto 16px;
 }
 
-.seed-preview {
+.seed-preview,
+.obstacle-preview {
     display: grid;
     flex: 0 0 96px;
     width: 96px;
@@ -354,14 +358,16 @@ main {
     background: #e8f0df;
 }
 
-.seed-preview img {
+.seed-preview img,
+.obstacle-preview img {
     display: block;
     width: 68px;
     height: 68px;
     object-fit: contain;
 }
 
-.sprout-description {
+.sprout-description,
+.obstacle-description {
     margin: 0;
     color: #526653;
     font-size: 0.85rem;
