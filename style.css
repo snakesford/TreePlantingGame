@@ -229,6 +229,10 @@ main {
 }
 
 .game-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
     padding: 14px 28px;
     border: 0;
     border-radius: 8px;
@@ -236,6 +240,14 @@ main {
     color: #fff;
     font: 600 1rem/1.2 sans-serif;
     cursor: pointer;
+}
+
+.seed-button-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
 }
 
 .game-actions button:hover:not(:disabled) {

@@ -165,6 +165,8 @@ let clockPaused = false;
 let gameStarted = false;
 const sideLength = 6;
 const radius = 24;
+// Largest centered square inside a pointy-top hex, with room for its border.
+const maximumTileImageSize = 2 * (radius - 2) / (1 + 1 / Math.sqrt(3));
 const centerX = 230;
 const centerY = 205;
 const svgNamespace = "http://www.w3.org/2000/svg";
@@ -438,9 +440,9 @@ function addTileObstacle(q, r, obstacleType = null) {
 
     const { x, y } = getTileCenter(q, r);
     const obstacleImage = document.createElementNS(svgNamespace, "image");
-    const obstacleSize =
+    const obstacleSize = Math.min(maximumTileImageSize,
         definition.key === "boulder" ? 36 :
-        definition.key === "rock" ? 24 : 30;
+        definition.key === "rock" ? 24 : 30);
 
     obstacleImage.setAttribute("class", "tile-obstacle");
     obstacleImage.setAttribute("href", definition.image);
@@ -606,8 +608,12 @@ function getFreeUpgradeInterval(seedState) {
 }
 
 function updateSeedAppearance(seedState) {
-    const size =
-        28 + seedState.stageIndex * 8 + seedState.upgradesInStage * 2;
+    const growthProgress = Math.min(1,
+        (seedState.stageIndex + seedState.upgradesInStage / getUpgradesPerStage(seedState)) /
+        maximumGrowthStage
+    );
+    const minimumSize = maximumTileImageSize * 0.5;
+    const size = minimumSize + (maximumTileImageSize - minimumSize) * growthProgress;
     const stage = getGrowthStage(seedState);
 
     seedState.image.setAttribute("href", stage.image);

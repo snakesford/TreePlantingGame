@@ -251,3 +251,19 @@ for (const treeType of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
     assert.equal(migrated.run('getFreeUpgradeInterval(plantedSeeds[0])'), 0);
 }
 console.log('Retired-stage save migration and Mature growth cap passed for all five tree types.');
+
+const sizing = game();
+for (const type of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
+    sizing.run(`plantSeed('${type}')`);
+    let previousSize = 0;
+    for (let upgrade = 0; upgrade <= 20; upgrade++) {
+        const width = sizing.run('plantedSeeds.at(-1).image.getAttribute("width")');
+        assert.ok(width > previousSize, 'Every upgrade should increase image size');
+        // At each square corner: |y| + |x| / sqrt(3) must stay inside the hex.
+        assert.ok(width / 2 * (1 + 1 / Math.sqrt(3)) <= 22 + 1e-9);
+        assert.equal(sizing.run('plantedSeeds.at(-1).image.getAttribute("x") + plantedSeeds.at(-1).image.getAttribute("width") / 2 - plantedSeeds.at(-1).x'), 0);
+        previousSize = width;
+        sizing.run('upgradeSeed(plantedSeeds.at(-1))');
+    }
+}
+console.log('All tree images grow with each upgrade and remain centered inside their hex.');
