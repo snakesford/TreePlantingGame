@@ -1,6 +1,7 @@
 const tiles = document.querySelector(".hex-tiles");
 const moneyAmount = document.querySelector(".money-amount");
 const plantButton = document.querySelector(".plant-button");
+const buyTileButton = document.querySelector(".buy-tile-button");
 const daylightClock = document.querySelector(".daylight-clock");
 const daylightStatus = document.querySelector(".daylight-status");
 const clockDial = document.querySelector(".clock-dial");
@@ -21,6 +22,7 @@ const seedProgressCount = document.querySelector(".seed-progress-count");
 const seedUpgradeCost = document.querySelector(".seed-upgrade-cost");
 let moneyInCents = 500;
 const seedCostInCents = 100;
+const tileCostInCents = 2500;
 const seedUpgradeCostInCents = 50;
 const dayCycleDuration = 60 * 1000;
 const saveStorageKey = "tree-planting-game-save";
@@ -49,13 +51,19 @@ const growthStages = [
         upgradeCostInCents: 1000,
         freeUpgradeIntervalInDays: 12,
     },
-    { name: "Sapling", image: "images/sapling.png", earningInCents: 150 },
+    {
+        name: "Sapling",
+        image: "images/sapling.png",
+        earningInCents: 150,
+        upgradeCostInCents: 2500,
+        freeUpgradeIntervalInDays: 18,
+    },
     {
         name: "Mature Tree",
         image: "images/mature.png",
         earningInCents: 300,
-        upgradeCostInCents: 2500,
-        freeUpgradeIntervalInDays: 18,
+        upgradeCostInCents: 6000,
+        freeUpgradeIntervalInDays: 25,
     },
     { name: "Ancient Tree", image: "images/ancient.png", earningInCents: 500 },
 ];
@@ -77,6 +85,9 @@ const centerX = 230;
 const centerY = 205;
 const svgNamespace = "http://www.w3.org/2000/svg";
 const availableTiles = [];
+const boardTileCoordinates = [];
+const boardTileKeys = new Set();
+const purchasedTileCoordinates = [];
 const plantedSeeds = [];
 let selectedSeed = null;
 let savedGameData = null;
@@ -90,6 +101,7 @@ function saveGame() {
         moneyInCents,
         elapsedCycleTime,
         clockSpeed,
+        additionalTiles: purchasedTileCoordinates.map(({ q, r }) => ({ q, r })),
         seeds: plantedSeeds.map((seed) => ({
             x: seed.x,
             y: seed.y,
@@ -164,10 +176,39 @@ function isValidSaveData(data) {
         data.elapsedCycleTime < 0 ||
         ![1, 3].includes(data.clockSpeed) ||
         !Array.isArray(data.seeds) ||
-        data.seeds.length > availableTiles.length
+        (data.additionalTiles !== undefined &&
+            !Array.isArray(data.additionalTiles))
     ) {
         return false;
     }
+
+    const additionalTiles = data.additionalTiles ?? [];
+    const knownTileKeys = new Set(boardTileKeys);
+    const tilePositions = availableTiles.map(({ x, y }) => ({ x, y }));
+    for (const tile of additionalTiles) {
+        if (
+            !tile ||
+            !Number.isInteger(tile.q) ||
+            !Number.isInteger(tile.r)
+        ) {
+            return false;
+        }
+
+        const key = `${tile.q},${tile.r}`;
+        if (
+            knownTileKeys.has(key) ||
+            !tileNeighborOffsets.some(([qOffset, rOffset]) =>
+                knownTileKeys.has(`${tile.q + qOffset},${tile.r + rOffset}`)
+            )
+        ) {
+            return false;
+        }
+
+        knownTileKeys.add(key);
+        tilePositions.push(getTileCenter(tile.q, tile.r));
+    }
+
+    if (data.seeds.length > tilePositions.length) return false;
 
     const occupiedPositions = new Set();
     return data.seeds.every((seed) => {
@@ -187,7 +228,7 @@ function isValidSaveData(data) {
             return false;
         }
 
-        const tileIndex = availableTiles.findIndex(
+        const tileIndex = tilePositions.findIndex(
             (tile) => Math.abs(tile.x - seed.x) < 0.001 &&
                 Math.abs(tile.y - seed.y) < 0.001
         );
@@ -213,6 +254,67 @@ function countCycleTicks(cycleTime, tickTimes) {
 function updateMoneyDisplay() {
     moneyAmount.textContent = (moneyInCents / 100).toString();
     plantButton.disabled = moneyInCents < seedCostInCents || availableTiles.length === 0;
+    buyTileButton.disabled = moneyInCents < tileCostInCents;
+}
+
+const tileNeighborOffsets = [
+    [1, 0],
+    [1, -1],
+    [0, -1],
+    [-1, 0],
+    [-1, 1],
+    [0, 1],
+];
+
+function getTileCenter(q, r) {
+    return {
+        x: centerX + Math.sqrt(3) * radius * (q + r / 2),
+        y: centerY + 1.5 * radius * r,
+    };
+}
+
+function addBoardTile(q, r, isPurchased = false) {
+    const key = `${q},${r}`;
+    if (boardTileKeys.has(key)) return false;
+
+    const { x, y } = getTileCenter(q, r);
+    const points = Array.from({ length: 6 }, (_, index) => {
+        const angle = ((index * 60 - 90) * Math.PI) / 180;
+        return `${x + radius * Math.cos(angle)},${y + radius * Math.sin(angle)}`;
+    }).join(" ");
+    const tile = document.createElementNS(svgNamespace, "polygon");
+
+    tile.setAttribute("class", "hex-tile");
+    tile.setAttribute("points", points);
+    tiles.prepend(tile);
+    availableTiles.push({ q, r, x, y });
+    boardTileCoordinates.push({ q, r });
+    boardTileKeys.add(key);
+    if (isPurchased) {
+        purchasedTileCoordinates.push({ q, r });
+        updateBoardViewBox();
+    }
+    return true;
+}
+
+function updateBoardViewBox() {
+    let minX = 0;
+    let minY = 0;
+    let maxX = 460;
+    let maxY = 410;
+
+    boardTileCoordinates.forEach(({ q, r }) => {
+        const { x, y } = getTileCenter(q, r);
+        minX = Math.min(minX, x - radius);
+        minY = Math.min(minY, y - radius);
+        maxX = Math.max(maxX, x + radius);
+        maxY = Math.max(maxY, y + radius);
+    });
+
+    tiles.ownerSVGElement.setAttribute(
+        "viewBox",
+        `${minX} ${minY} ${maxX - minX} ${maxY - minY}`
+    );
 }
 
 function addPlantedSeed(seedData) {
@@ -411,6 +513,9 @@ function continueGame() {
     elapsedCycleTime = savedGameData.elapsedCycleTime;
     clockSpeed = savedGameData.clockSpeed;
     clockSpeedButton.setAttribute("aria-pressed", String(clockSpeed === 3));
+    (savedGameData.additionalTiles ?? []).forEach(({ q, r }) => {
+        addBoardTile(q, r, true);
+    });
     savedGameData.seeds.forEach(addPlantedSeed);
     updateMoneyDisplay();
     startGame();
@@ -485,22 +590,34 @@ plantButton.addEventListener("click", () => {
     saveGame();
 });
 
+buyTileButton.addEventListener("click", () => {
+    if (moneyInCents < tileCostInCents) return;
+
+    const candidateTiles = new Map();
+    boardTileCoordinates.forEach(({ q, r }) => {
+        tileNeighborOffsets.forEach(([qOffset, rOffset]) => {
+            const candidate = { q: q + qOffset, r: r + rOffset };
+            const key = `${candidate.q},${candidate.r}`;
+            if (!boardTileKeys.has(key)) {
+                candidateTiles.set(key, candidate);
+            }
+        });
+    });
+    const candidates = Array.from(candidateTiles.values());
+    if (candidates.length === 0) return;
+
+    const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
+    addBoardTile(q, r, true);
+    moneyInCents -= tileCostInCents;
+    updateMoneyDisplay();
+    saveGame();
+});
+
 for (let q = -(sideLength - 1); q < sideLength; q += 1) {
     for (let r = -(sideLength - 1); r < sideLength; r += 1) {
         if (Math.abs(q + r) >= sideLength) continue;
 
-        const x = centerX + Math.sqrt(3) * radius * (q + r / 2);
-        const y = centerY + 1.5 * radius * r;
-        const points = Array.from({ length: 6 }, (_, index) => {
-            const angle = ((index * 60 - 90) * Math.PI) / 180;
-            return `${x + radius * Math.cos(angle)},${y + radius * Math.sin(angle)}`;
-        }).join(" ");
-        const tile = document.createElementNS(svgNamespace, "polygon");
-
-        tile.setAttribute("class", "hex-tile");
-        tile.setAttribute("points", points);
-        tiles.append(tile);
-        availableTiles.push({ x, y });
+        addBoardTile(q, r);
     }
 }
 
