@@ -170,28 +170,20 @@ body {
     transform-origin: 1px 43px;
 }
 
-.day-earning-one {
-    transform: rotate(22.5deg);
+.dawn-earning {
+    transform: rotate(0deg);
 }
 
-.day-earning-two {
-    transform: rotate(67.5deg);
+.midday-earning {
+    transform: rotate(90deg);
 }
 
-.day-earning-three {
-    transform: rotate(112.5deg);
+.sunset-earning {
+    transform: rotate(180deg);
 }
 
-.day-earning-four {
-    transform: rotate(157.5deg);
-}
-
-.night-earning-one {
-    transform: rotate(240deg);
-}
-
-.night-earning-two {
-    transform: rotate(300deg);
+.night-earning {
+    transform: rotate(270deg);
 }
 
 .sun-marker {

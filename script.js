@@ -17,32 +17,28 @@ const seedUpgradeCost = document.querySelector(".seed-upgrade-cost");
 let moneyInCents = 500;
 const seedCostInCents = 100;
 const seedUpgradeCostInCents = 40;
-const seedEarningInCents = 5;
-const ancientTreeEarningInCents = 50;
 const dayCycleDuration = 2 * 60 * 1000;
 const freeSeedUpgradeInterval = 3 * dayCycleDuration;
 const growthStages = [
-    { name: "Seed", image: "images/seed.png" },
-    { name: "Germination", image: "images/germination.png" },
-    { name: "Sprout", image: "images/sprout.png" },
-    { name: "Seedling", image: "images/seedling.png" },
-    { name: "Sapling", image: "images/sapling.png" },
-    { name: "Mature Tree", image: "images/mature.png" },
-    { name: "Ancient Tree", image: "images/ancient.png" },
+    { name: "Seed", image: "images/seed.png", earningInCents: 10 },
+    { name: "Germination", image: "images/germination.png", earningInCents: 20 },
+    { name: "Sprout", image: "images/sprout.png", earningInCents: 40 },
+    { name: "Seedling", image: "images/seedling.png", earningInCents: 75 },
+    { name: "Sapling", image: "images/sapling.png", earningInCents: 150 },
+    { name: "Mature Tree", image: "images/mature.png", earningInCents: 300 },
+    { name: "Ancient Tree", image: "images/ancient.png", earningInCents: 500 },
 ];
 const upgradesPerGrowthStage = 4;
 const maximumGrowthStage = growthStages.length - 1;
 const daylightDuration = dayCycleDuration / 2;
 const nightDuration = dayCycleDuration - daylightDuration;
 const dayEarningTicks = [
-    daylightDuration / 8,
-    (daylightDuration * 3) / 8,
-    (daylightDuration * 5) / 8,
-    (daylightDuration * 7) / 8,
+    0,
+    daylightDuration / 2,
+    daylightDuration,
 ];
 const nightEarningTicks = [
-    daylightDuration + nightDuration / 3,
-    daylightDuration + (nightDuration * 2) / 3,
+    daylightDuration + nightDuration / 2,
 ];
 let elapsedCycleTime = 0;
 let previousFrameTime = performance.now();
@@ -101,9 +97,10 @@ function updateSeedDialog() {
     seedDialogTitle.textContent = stage.name;
     seedPreviewImage.src = stage.image;
     seedPreviewImage.alt = stage.name;
+    const earningPerPayout = `$${(stage.earningInCents / 100).toFixed(2)}`;
     seedDescription.textContent = isAncientTree
-        ? "Ancient trees earn 0.5 per day tick."
-        : "Click to upgrade. Free growth every 3 days.";
+        ? `Earns ${earningPerPayout} per payout.`
+        : `Earns ${earningPerPayout} per payout. Click to upgrade; free growth every 3 days.`;
     const displayedUpgrades = isAncientTree
         ? upgradesPerGrowthStage
         : selectedSeed.upgradesInStage;
@@ -185,13 +182,10 @@ function updateDaylightClock(frameTime) {
     let earnedMoney = 0;
 
     plantedSeeds.forEach((seed) => {
-        const daylightEarningInCents =
-            seed.stageIndex === maximumGrowthStage
-                ? ancientTreeEarningInCents
-                : seedEarningInCents;
+        const earningInCents = growthStages[seed.stageIndex].earningInCents;
         earnedMoney +=
-            daylightTicksPassed * daylightEarningInCents +
-            nightTicksPassed * seedEarningInCents;
+            daylightTicksPassed * earningInCents +
+            nightTicksPassed * earningInCents;
     });
 
     if (earnedMoney > 0) {
