@@ -96,6 +96,9 @@ let selectedSeedType = null;
 let pendingColor = null;
 let selectedColor = null;
 let playerStates = [];
+let humanColor = null;
+let botTurnVersion = 0;
+let performingBotAction = false;
 
 function updatePlayerCount() {
     const value = Number(playerCountSlider.value);
@@ -287,6 +290,7 @@ function saveGame() {
         version: saveVersion,
         tutorialCompleted,
         selectedColor,
+        humanColor,
         selectedSeedType,
         normalMode,
         activeBoardColors,
@@ -389,6 +393,8 @@ function isValidSaveData(data) {
             data.activeBoardColors.some(color => !["red", "green", "yellow"].includes(color)) ||
             !data.activeBoardColors.includes(data.selectedColor) ||
             data.boardTileCount !== 1 + 7 * data.activeBoardColors.length)) ||
+        (data.humanColor != null && (!["red", "green", "yellow"].includes(data.humanColor) ||
+            !(data.activeBoardColors ?? [data.selectedColor]).includes(data.humanColor))) ||
         (data.selectedSeedType != null && !["maple", "birch", "spruce", "oak"].includes(data.selectedSeedType)) ||
         (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
         (data.selectedColor != null && !["red", "green", "yellow"].includes(data.selectedColor)) ||
@@ -590,6 +596,11 @@ function updateMoneyDisplay() {
     const turnIndicator = document.querySelector(".turn-indicator");
     turnIndicator.hidden = !normalMode || !selectedColor;
     turnIndicator.textContent = selectedColor ? `${selectedColor[0].toUpperCase() + selectedColor.slice(1)}’s turn` : "";
+    if (isBotTurn()) {
+        turnIndicator.textContent += " (bot)";
+        [plantMapleButton, plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton, doneButton]
+            .forEach(button => { button.disabled = true; });
+    }
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
     payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
     doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
@@ -686,6 +697,7 @@ function advanceToNextLevel() {
 }
 
 function resetBoard() {
+    botTurnVersion += 1;
     closeSeedDialog(selectedSeed);
     closeObstacleDialog(selectedObstacle);
     tiles.replaceChildren();
@@ -823,6 +835,7 @@ function addTileObstacle(q, r, obstacleType = null) {
 }
 
 function clearTileObstacle(q, r) {
+    if (isBotTurn() && !performingBotAction) return;
     const key = getTileKey(q, r);
     const obstacle = tileObstacles.get(key);
     if (!obstacle) return false;
@@ -1012,6 +1025,7 @@ function getCompostReward(seedState) {
 }
 
 function compostTree(seedState) {
+    if (isBotTurn() && !performingBotAction) return;
     if (!canManageTree(seedState)) return;
     const index = plantedSeeds.indexOf(seedState);
     if (index < 0) return;
@@ -1110,6 +1124,7 @@ function openSeedDialog(seedState, event) {
 }
 
 function upgradeSeed(seedState) {
+    if (isBotTurn() && !performingBotAction) return;
     if (!canManageTree(seedState)) return;
     const upgradeCostInCents = getSeedUpgradeCost(seedState);
     if (
@@ -1175,6 +1190,7 @@ function initializePlayers() {
 }
 
 function collectPayout() {
+    if (isBotTurn() && !performingBotAction) return;
     if (!gameStarted) return;
     const income = getCurrentPlayerIncome();
     if (!normalMode && income === 0) return;
@@ -1197,6 +1213,55 @@ function collectPayout() {
     }
     updateMoneyDisplay();
     saveGame();
+    scheduleBotTurn();
+}
+
+// Keep ownership separate from the active turn, including across reloads.
+function isBotTurn() {
+    return normalMode && humanColor !== null && selectedColor !== humanColor;
+}
+
+function scheduleBotTurn() {
+    const version = ++botTurnVersion;
+    if (!gameStarted || !isBotTurn()) return;
+    let actions = 0;
+    let planted = false;
+    let composted = false;
+    const step = () => {
+        if (version !== botTurnVersion || !gameStarted || !isBotTurn()) return;
+        performingBotAction = true;
+        try {
+            const trees = plantedSeeds.filter(canManageTree);
+            const mature = trees.filter(seed => seed.stageIndex === maximumGrowthStage);
+            const plantingCost = selectedSeedType === "oak" ? oakSeedCostInCents : seedCostInCents;
+            const upgrade = trees.filter(seed => seed.stageIndex < maximumGrowthStage && getSeedUpgradeCost(seed) <= moneyInCents)
+                .sort((a, b) => getSeedUpgradeCost(a) - getSeedUpgradeCost(b) || b.upgradesInStage - a.upgradesInStage)[0];
+            const name = selectedColor[0].toUpperCase() + selectedColor.slice(1);
+            if (actions >= 8) {
+                collectPayout();
+                return;
+            } else if (!composted && getPlantableTiles().length === 0 && mature.length > 1) {
+                compostTree(mature[0]);
+                composted = true;
+                payoutStatus.textContent = `${name} bot composted a mature tree.`;
+            } else if (!planted && getPlantableTiles().length > 0 && moneyInCents >= plantingCost) {
+                plantSeed();
+                planted = true;
+                payoutStatus.textContent = `${name} bot planted a ${selectedSeedType}.`;
+            } else if (upgrade) {
+                upgradeSeed(upgrade);
+                payoutStatus.textContent = `${name} bot upgraded a tree.`;
+            } else {
+                collectPayout();
+                return;
+            }
+            actions += 1;
+        } finally {
+            performingBotAction = false;
+        }
+        window.setTimeout(step, 350);
+    };
+    window.setTimeout(step, 500);
 }
 
 doneButton.addEventListener("click", collectPayout);
@@ -1211,6 +1276,7 @@ function startGame() {
         tutorialWelcomeDialog.showModal();
     }
     saveGame();
+    scheduleBotTurn();
 }
 
 document.querySelector(".tutorial-welcome-dismiss").addEventListener("click", () => {
@@ -1241,6 +1307,7 @@ function continueGame() {
     playerStates = (savedGameData.playerStates ?? []).map(player => ({ ...player }));
     selectedSeedType = savedGameData.selectedSeedType ?? null;
     selectedColor = savedGameData.selectedColor ?? null;
+    humanColor = savedGameData.humanColor ?? selectedColor;
     activeBoardColors = savedGameData.activeBoardColors ?? null;
     playerCount = activeBoardColors?.length ?? 3;
     moneyInCents = savedGameData.moneyInCents;
@@ -1292,6 +1359,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     document.querySelector(".tutorial-done-prompt").hidden = true;
     payoutControls.setAttribute("data-tutorial-focus", "false");
     selectedColor = normalMode ? color : null;
+    humanColor = selectedColor;
     activeBoardColors = normalMode ? choosePlayerColors(color, playerCount) : null;
     tutorialCompleted = false;
     currentLevel = 1;
@@ -1394,6 +1462,7 @@ setupDoneButton.addEventListener("click", () => {
     colorDialog.close();
     if (choosingColorForContinue) {
         selectedColor = pendingColor;
+        humanColor = pendingColor;
         selectedSeedType = pendingSeedType;
         if (playerStates.length === 0) initializePlayers();
         tileElements.forEach((tile, key) => {
@@ -1413,6 +1482,7 @@ tutorialButton.addEventListener("click", () => startNewGame(true));
 window.addEventListener("beforeunload", saveGame);
 
 function plantSeed(treeType = normalMode ? selectedSeedType : "maple") {
+    if (isBotTurn() && !performingBotAction) return;
     if (normalMode && treeType !== selectedSeedType) return;
     if (!["maple", "birch", "spruce", "oak"].includes(treeType)) return;
     const plantingCost = treeType === "oak" ? oakSeedCostInCents : seedCostInCents;
@@ -1438,6 +1508,7 @@ plantSpruceButton.addEventListener("click", () => plantSeed("spruce"));
 plantOakButton.addEventListener("click", () => plantSeed("oak"));
 
 buyTileButton.addEventListener("click", () => {
+    if (isBotTurn()) return;
     if (moneyInCents < tileCostInCents) return;
 
     const candidateTiles = new Map();

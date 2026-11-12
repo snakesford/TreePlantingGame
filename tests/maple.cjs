@@ -857,6 +857,7 @@ assert.equal(unchosen.run('plantedSeeds.length'), 0);
 assert.equal(unchosen.elements.get('.plant-maple-button').disabled, true);
 const oldColorSave = JSON.parse(refreshedModeMenu.storage.get('tree-planting-game-save'));
 delete oldColorSave.selectedColor;
+delete oldColorSave.humanColor;
 delete oldColorSave.activeBoardColors;
 delete oldColorSave.playerStates;
 const oldColorGame = game(JSON.stringify(oldColorSave));
@@ -1071,6 +1072,7 @@ for (const count of [1, 2, 3]) {
         turns.elements.get(`.choose-${firstColor}`).events.click();
         turns.elements.get('.choose-seed-birch').events.click();
         turns.elements.get('.setup-done-button').events.click();
+        turns.run('humanColor = null'); // Exercise the underlying turn rotation independently of bot scheduling.
         const order = ['green', 'yellow', 'red'].filter(color => turns.run('activeBoardColors').includes(color));
         for (let turn = 0; turn < count * 2; turn++) {
             const color = turns.run('selectedColor');
@@ -1117,3 +1119,59 @@ assert.equal(ownedExpansion.run('getPlantableTiles().some(tile => tile.q === pur
 const expansionResume = game(ownedExpansion.storage.get('tree-planting-game-save'));
 assert.equal(expansionResume.run('getBoardTileColor(purchasedTileCoordinates[0].q, purchasedTileCoordinates[0].r)'), 'green');
 console.log('Done rotates clockwise for every player count, preserves independent balances and seeds, blocks other-player tree actions, allows empty turns, and saves purchased-tile ownership.');
+
+function installBotClock(session) {
+    session.run('window.botTimers = []; window.setTimeout = (callback) => window.botTimers.push(callback)');
+}
+function finishBotTurns(session) {
+    let ticks = 0;
+    while (session.run('isBotTurn() && window.botTimers.length > 0') && ticks++ < 100) {
+        session.run('window.botTimers.shift()()');
+    }
+    assert.ok(ticks < 100, 'Bots must finish their turns');
+    assert.equal(session.run('isBotTurn()'), false);
+}
+for (const count of [1, 2, 3]) {
+    for (const color of ['green', 'yellow', 'red']) {
+        const bots = game();
+        bots.run(`playerCount = ${count}; moneyInCents = 1000; startNewGame(false, '${color}', false, 'maple')`);
+        installBotClock(bots);
+        const humanTrees = bots.run('JSON.stringify(plantedSeeds.filter(canManageTree).map(({stageIndex, upgradesInStage}) => ({stageIndex, upgradesInStage})))');
+        bots.elements.get('.done-button').events.click();
+        if (count > 1) {
+            assert.equal(bots.elements.get('.done-button').disabled, true);
+            const before = bots.storage.get('tree-planting-game-save');
+            bots.run('plantSeed(); upgradeSeed(plantedSeeds.find(canManageTree)); compostTree(plantedSeeds.find(canManageTree)); collectPayout()');
+            assert.equal(bots.storage.get('tree-planting-game-save'), before, 'Human inputs cannot play a bot turn');
+            const resume = game(before);
+            installBotClock(resume);
+            resume.run('scheduleBotTurn()');
+            finishBotTurns(resume);
+            assert.equal(resume.run('selectedColor'), color);
+        }
+        finishBotTurns(bots);
+        assert.equal(bots.run('selectedColor'), color);
+        assert.equal(bots.run('moneyInCents'), 1100);
+        assert.equal(bots.run('plantedSeeds.length'), count * 2 - 1);
+        assert.equal(bots.run('JSON.stringify(plantedSeeds.filter(canManageTree).map(({stageIndex, upgradesInStage}) => ({stageIndex, upgradesInStage})))'), humanTrees);
+        assert.equal(bots.run('playerStates.every(player => player.moneyInCents >= 0)'), true);
+        if (count > 1) assert.equal(bots.run('plantedSeeds.some(seed => !canManageTree(seed) && (seed.upgradesInStage > 0 || seed.stageIndex === 1))'), true);
+        assert.equal(bots.elements.get('.done-button').disabled, false);
+    }
+}
+const compostBot = game();
+compostBot.run(`moneyInCents = 1000; startNewGame(false, 'green', false, 'maple');
+    for (const tile of [...availableTiles].filter(tile => getBoardTileColor(tile.q, tile.r) === 'yellow')) {
+        addPlantedSeed({ x: tile.x, y: tile.y, treeType: 'maple', stageIndex: maximumGrowthStage, upgradesInStage: 0 });
+    }`);
+installBotClock(compostBot);
+compostBot.run('collectPayout(); window.botTimers.shift()()');
+assert.equal(compostBot.run('plantedSeeds.filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === "yellow").length'), 6);
+assert.match(compostBot.elements.get('.payout-status').textContent, /composted/);
+finishBotTurns(compostBot);
+assert.equal(compostBot.run('plantedSeeds.filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === "yellow").length'), 7);
+compostBot.run('collectPayout(); startNewGame(true)');
+const afterReset = compostBot.storage.get('tree-planting-game-save');
+compostBot.run('while (window.botTimers.length) window.botTimers.shift()()');
+assert.equal(compostBot.storage.get('tree-planting-game-save'), afterReset);
+console.log('Bots plant, upgrade, compost, auto-pass, preserve human ownership on reload, block manual actions, and cancel on game reset.');
