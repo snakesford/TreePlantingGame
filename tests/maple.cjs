@@ -146,7 +146,7 @@ skippedTutorial.elements.get('.choose-green').events.click();
 skippedTutorial.elements.get('.choose-seed-maple').events.click();
 skippedTutorial.elements.get('.setup-done-button').events.click();
 assert.equal(skippedTutorial.run('boardTileCoordinates.length'), 22);
-assert.equal(skippedTutorial.run('plantedSeeds.length'), 0);
+assert.equal(skippedTutorial.run('plantedSeeds.length'), 3);
 assert.equal(skippedTutorial.elements.get('.level-indicator').hidden, true);
 assert.equal(skippedTutorial.elements.get('.level-details').hidden, true);
 assert.equal(skippedTutorial.elements.get('.plant-birch-button').hidden, true);
@@ -164,7 +164,7 @@ for (const color of ['green', 'yellow', 'red', 'blue']) {
     assert.equal(refreshedModeMenu.run(`Array.from(tileElements.values()).filter(tile => tile.getAttribute("data-color") === "${color}").length`), color === 'blue' ? 1 : 7);
 }
 assert.equal(refreshedModeMenu.run('tileElements.get("0,0").getAttribute("data-color")'), 'blue');
-assert.equal(refreshedModeMenu.run('availableTiles.length'), 22);
+assert.equal(refreshedModeMenu.run('availableTiles.length'), 19);
 assert.equal(refreshedModeMenu.run('currentLevel'), 1);
 assert.equal(refreshedModeMenu.run('tutorialWelcomeDialog.open === true'), false);
 console.log('Tutorial empty tile, maple-only planting controls, save/continue, and normal new game passed.');
@@ -829,9 +829,9 @@ for (const color of ['red', 'green', 'yellow']) {
     assert.equal(colored.run('selectedColor'), color);
     assert.equal(colored.run('gameStarted'), true);
     colored.run('for (let i = 0; i < 7; i++) plantSeed()');
-    assert.equal(colored.run('plantedSeeds.length'), 7);
-    assert.equal(colored.run('plantedSeeds.every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
-    assert.equal(colored.run('availableTiles.length'), 15);
+    assert.equal(colored.run('plantedSeeds.length'), 9);
+    assert.equal(colored.run('plantedSeeds.filter(seed => seed.stageIndex === 0).every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
+    assert.equal(colored.run('availableTiles.length'), 13);
     assert.equal(colored.elements.get('.plant-maple-button').disabled, true);
     assert.equal(colored.elements.get('.plant-oak-button').disabled, true);
     const balance = colored.run('moneyInCents');
@@ -844,11 +844,11 @@ for (const color of ['red', 'green', 'yellow']) {
     resumed.run('compostTree(plantedSeeds[0])');
     assert.equal(resumed.run('getPlantableTiles().length'), 1);
     resumed.run('plantSeed()');
-    assert.equal(resumed.run('plantedSeeds.length'), 7);
+    assert.equal(resumed.run('plantedSeeds.length'), 9);
     resumed.elements.get('.buy-tile-button').events.click();
     assert.equal(resumed.run('getPlantableTiles().length'), 1);
     resumed.run('plantSeed()');
-    assert.equal(resumed.run('plantedSeeds.every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
+    assert.equal(resumed.run('plantedSeeds.filter(seed => seed.stageIndex === 0).every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
 }
 console.log('All color choices restrict every seed type, persist on reload, block full regions, and support composting and expansion.');
 const unchosen = game();
@@ -882,7 +882,7 @@ assert.equal(freePlay.elements.get('.next-level-button').hidden, true);
 assert.equal(freePlay.elements.get('.level-notification').hidden, true);
 assert.equal(freePlay.run('completedLevels.size'), 0);
 freePlay.elements.get('.next-level-button').events.click();
-assert.equal(freePlay.run('plantedSeeds.length'), 7);
+assert.equal(freePlay.run('plantedSeeds.length'), 9);
 assert.equal(freePlay.run('boardTileCoordinates.length'), 22);
 const freePlayResume = game(freePlay.storage.get('tree-planting-game-save'));
 freePlayResume.run('continueGame()');
@@ -890,7 +890,7 @@ assert.equal(freePlayResume.run('normalMode'), true);
 assert.equal(freePlayResume.elements.get('.level-row').hidden, true);
 const freeBalance = freePlayResume.run('moneyInCents');
 freePlayResume.elements.get('.done-button').events.click();
-assert.equal(freePlayResume.run('moneyInCents'), freeBalance + 280);
+assert.equal(freePlayResume.run('moneyInCents'), freeBalance + 540);
 console.log('Normal mode hides and disables levels, retains its board, saves mode, and continues payouts.');
 
 for (const count of [1, 2, 3]) {
@@ -908,7 +908,20 @@ for (const count of [1, 2, 3]) {
         assert.equal(setup.run('boardTileKeys.size'), 1 + count * 7);
         assert.equal(setup.run('activeBoardColors.length'), count);
         assert.equal(setup.run('activeBoardColors.includes(selectedColor)'), true);
-        assert.equal(setup.run('getPlantableTiles().length'), 7);
+        assert.equal(setup.run('getPlantableTiles().length'), 6);
+        assert.equal(setup.run('plantedSeeds.length'), count);
+        assert.equal(setup.run('plantedSeeds.every(seed => seed.stageIndex === 2 && seed.upgradesInStage === 0)'), true);
+        for (const region of setup.run('activeBoardColors')) {
+            assert.equal(setup.run(`plantedSeeds.filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === "${region}").length`), 1);
+            assert.equal(setup.run(`(() => {
+                const sprout = plantedSeeds.find(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === "${region}");
+                const distance = (x, y) => (x - centerX) ** 2 + (y - centerY) ** 2;
+                return boardTileCoordinates.filter(tile => getBoardTileColor(tile.q, tile.r) === "${region}").every(tile => {
+                    const position = getTileCenter(tile.q, tile.r);
+                    return distance(position.x, position.y) <= distance(sprout.x, sprout.y) + 0.001;
+                });
+            })()`), true);
+        }
         for (const region of setup.run('activeBoardColors')) {
             assert.equal(setup.run(`Array.from(tileElements.values()).filter(tile => tile.getAttribute("data-color") === "${region}").length`), 7);
         }
@@ -921,7 +934,7 @@ for (const count of [1, 2, 3]) {
         assert.equal(resumed.run('boardTileCoordinates.length'), 2 + count * 7);
         assert.equal(resumed.run('playerCount'), count);
         assert.equal(resumed.run('selectedColor'), color);
-        assert.equal(resumed.run('plantedSeeds.length'), 1);
+        assert.equal(resumed.run('plantedSeeds.length'), count + 1);
         assert.equal(JSON.stringify(resumed.run('boardTileCoordinates')), JSON.stringify(setup.run('boardTileCoordinates')));
     }
 }
@@ -933,7 +946,7 @@ assert.equal(refreshWithoutSave.elements.get('.game-menu-panel').hidden, false);
 const refreshWithSave = game(freePlay.storage.get('tree-planting-game-save'));
 assert.notEqual(refreshWithSave.elements.get('.save-slot-dialog').open, true);
 assert.equal(refreshWithSave.run('gameStarted'), true);
-assert.equal(refreshWithSave.run('plantedSeeds.length'), 7);
+assert.equal(refreshWithSave.run('plantedSeeds.length'), 9);
 assert.equal(refreshWithSave.run('selectedColor'), 'yellow');
 console.log('Refresh resumes saved games without a save-slot popup and opens the mode menu for new players.');
 
@@ -969,6 +982,8 @@ for (const seedType of ['maple', 'birch', 'spruce', 'oak']) {
     seedSetup.elements.get('.setup-done-button').events.click();
     assert.equal(seedSetup.run('gameStarted'), true);
     assert.equal(seedSetup.run('selectedSeedType'), seedType);
+    assert.equal(seedSetup.run('plantedSeeds.length'), 3);
+    assert.equal(seedSetup.run('plantedSeeds.every(seed => seed.stageIndex === 2 && seed.treeType === selectedSeedType)'), true);
     for (const type of ['maple', 'birch', 'spruce', 'oak']) {
         const button = seedSetup.elements.get(`.plant-${type}-button`);
         assert.equal(button.hidden, type !== seedType);
@@ -984,7 +999,7 @@ for (const seedType of ['maple', 'birch', 'spruce', 'oak']) {
     assert.equal(seedResume.elements.get(`.plant-${seedType}-button`).hidden, false);
     assert.notEqual(seedResume.elements.get('.color-dialog').open, true);
     seedResume.run('plantSeed()');
-    assert.equal(seedResume.run('plantedSeeds.length'), 2);
+    assert.equal(seedResume.run('plantedSeeds.length'), 5);
     assert.equal(seedResume.run('plantedSeeds.every(seed => seed.treeType === selectedSeedType)'), true);
     const legacySeedSave = JSON.parse(seedSetup.storage.get('tree-planting-game-save'));
     delete legacySeedSave.selectedSeedType;
@@ -992,7 +1007,7 @@ for (const seedType of ['maple', 'birch', 'spruce', 'oak']) {
     assert.equal(legacySeedGame.elements.get('.color-dialog').open, true);
     legacySeedGame.elements.get(`.choose-seed-${seedType}`).events.click();
     legacySeedGame.elements.get('.setup-done-button').events.click();
-    assert.equal(legacySeedGame.run('plantedSeeds.length'), 1);
+    assert.equal(legacySeedGame.run('plantedSeeds.length'), 4);
     assert.equal(legacySeedGame.run('selectedSeedType'), seedType);
 }
 console.log('All four seed choices follow color selection, hide other buttons, block other species, persist, and support older saves.');

@@ -1233,6 +1233,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     startingTileCount = withTutorial ? 1 : withLevels ? 7 : 1 + 7 * activeBoardColors.length;
     boardLayoutVersion = 2;
     resetBoard();
+    if (normalMode) plantStartingSprouts();
     levelOneCompleted = false;
     levelTwoCompleted = false;
     matureTreesComposted = 0;
@@ -1244,6 +1245,23 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     }
     updateMoneyDisplay();
     startGame();
+}
+
+function plantStartingSprouts() {
+    for (const color of activeBoardColors) {
+        const region = availableTiles.filter(({ q, r }) => getBoardTileColor(q, r) === color);
+        const distanceSquared = ({ x, y }) => (x - centerX) ** 2 + (y - centerY) ** 2;
+        const farthestTile = region.reduce((farthest, tile) =>
+            !farthest || distanceSquared(tile) > distanceSquared(farthest) ? tile : farthest, null);
+        if (!farthestTile) continue;
+        addPlantedSeed({
+            treeType: selectedSeedType,
+            x: farthestTile.x,
+            y: farthestTile.y,
+            stageIndex: 2,
+            upgradesInStage: 0,
+        });
+    }
 }
 
 function updateSetupPreview() {
