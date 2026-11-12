@@ -53,6 +53,32 @@ const saveSlotSummary = document.querySelector(".save-slot-summary");
 const continueGameButton = document.querySelector(".continue-game-button");
 const newGameButton = document.querySelector(".new-game-button");
 const tutorialButton = document.querySelector(".tutorial-button");
+const menuToggle = document.querySelector(".menu-toggle");
+const menuPanel = document.querySelector(".game-menu-panel");
+
+function setGameMenuOpen(open) {
+    menuPanel.hidden = !open;
+    menuToggle.setAttribute("aria-expanded", String(open));
+    menuToggle.setAttribute("aria-label", open ? "Close game menu" : "Open game menu");
+}
+
+menuToggle.addEventListener("click", () => {
+    setGameMenuOpen(menuToggle.getAttribute("aria-expanded") !== "true");
+});
+document.querySelector(".game-menu").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        setGameMenuOpen(false);
+        menuToggle.focus();
+    }
+});
+document.querySelector(".menu-normal-button").addEventListener("click", () => {
+    setGameMenuOpen(false);
+    startNewGame();
+});
+document.querySelector(".menu-tutorial-button").addEventListener("click", () => {
+    setGameMenuOpen(false);
+    startNewGame(true);
+});
 const colorDialog = document.querySelector(".color-dialog");
 const playerCountSlider = document.querySelector(".player-count-slider");
 const playerCountOutput = document.querySelector(".player-count-output");
