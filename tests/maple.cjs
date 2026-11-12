@@ -846,7 +846,7 @@ for (const color of ['red', 'green', 'yellow']) {
     resumed.run('plantSeed()');
     assert.equal(resumed.run('plantedSeeds.length'), 9);
     resumed.elements.get('.buy-tile-button').events.click();
-    assert.equal(resumed.run('getPlantableTiles().length'), 1);
+    assert.equal(resumed.run('getPlantableTiles().length'), resumed.run('(tileObstacles.has(getTileKey(purchasedTileCoordinates[0].q, purchasedTileCoordinates[0].r)) || plantedSeeds.some(seed => seed.tile.q === purchasedTileCoordinates[0].q && seed.tile.r === purchasedTileCoordinates[0].r)) ? 0 : 1'));
     resumed.run('plantSeed()');
     assert.equal(resumed.run('plantedSeeds.filter(seed => seed.stageIndex === 0).every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
 }
@@ -938,7 +938,7 @@ for (const count of [1, 2, 3]) {
         assert.equal(resumed.run('boardTileCoordinates.length'), 2 + count * 7);
         assert.equal(resumed.run('playerCount'), count);
         assert.equal(resumed.run('selectedColor'), color);
-        assert.equal(resumed.run('plantedSeeds.length'), count + 1);
+        assert.equal(resumed.run('plantedSeeds.length'), setup.run('plantedSeeds.length'));
         assert.equal(JSON.stringify(resumed.run('boardTileCoordinates')), JSON.stringify(setup.run('boardTileCoordinates')));
     }
 }
@@ -1186,7 +1186,7 @@ for (const color of ['green', 'yellow', 'red']) {
     assert.equal(expansion.run('moneyInCents'), 2500);
     assert.equal(expansion.run('getBoardTileColor(window.targetHex.q, window.targetHex.r)'), color);
     assert.equal(expansion.run('purchaseTileElements.has(getTileKey(window.targetHex.q, window.targetHex.r))'), false);
-    assert.equal(expansion.run('getPlantableTiles().some(tile => tile.q === window.targetHex.q && tile.r === window.targetHex.r)'), expansion.run('!tileObstacles.has(getTileKey(window.targetHex.q, window.targetHex.r))'));
+    assert.equal(expansion.run('getPlantableTiles().some(tile => tile.q === window.targetHex.q && tile.r === window.targetHex.r)'), expansion.run('!tileObstacles.has(getTileKey(window.targetHex.q, window.targetHex.r)) && !plantedSeeds.some(seed => seed.tile.q === window.targetHex.q && seed.tile.r === window.targetHex.r)'));
     expansion.run('window.oldHex.events.click()');
     assert.equal(expansion.run('moneyInCents'), 2500, 'Repeated clicks must not charge twice');
     const restored = game(expansion.storage.get('tree-planting-game-save'));
@@ -1251,3 +1251,92 @@ const invalidFog = JSON.parse(fogSave);
 invalidFog.obstacles.push({q: 6, r: 0, type: 'rock'});
 assert.equal(game(JSON.stringify(invalidFog)).run('gameStarted'), false);
 console.log('Grey obstacles stay hidden until adjacent, reveal on expansion, require purchase before clearing, block planting, and persist without rerolling.');
+
+const expandingBot = game();
+expandingBot.run(`Math.random = () => 0; moneyInCents = 1000; startNewGame(false, 'green', false, 'maple');
+    playerStates.find(player => player.color === 'yellow').moneyInCents = 4000;
+    for (const tile of [...availableTiles].filter(({q,r}) => getBoardTileColor(q,r) === 'yellow')) {
+        addPlantedSeed({x: tile.x, y: tile.y, treeType: 'maple', stageIndex: 0, upgradesInStage: 0});
+    }
+    window.botTarget = getPurchaseCandidates('yellow')[0];
+    window.botTargetKey = getTileKey(window.botTarget.q, window.botTarget.r);`);
+installBotClock(expandingBot);
+expandingBot.run('collectPayout()');
+expandingBot.run('purchaseTile(window.botTarget.q, window.botTarget.r)');
+assert.equal(expandingBot.run('purchasedTileCoordinates.length'), 0, 'Manual purchases stay blocked during bot turns');
+expandingBot.run('window.botTimers.shift()()');
+assert.equal(expandingBot.run('purchasedTileCoordinates.length'), 1);
+assert.equal(expandingBot.run('getBoardTileColor(window.botTarget.q, window.botTarget.r)'), 'yellow');
+assert.equal(expandingBot.run('moneyInCents'), 1500);
+assert.equal(expandingBot.run('tileObstacles.has(window.botTargetKey)'), true);
+assert.equal(expandingBot.elements.get('.money-amount').textContent, '11');
+expandingBot.run('window.botTimers.shift()()');
+assert.equal(expandingBot.run('tileObstacles.has(window.botTargetKey)'), false);
+assert.equal(expandingBot.run('moneyInCents'), 500);
+expandingBot.run('window.botTimers.shift()()');
+assert.equal(expandingBot.run('plantedSeeds.some(seed => getTileKey(seed.tile.q, seed.tile.r) === window.botTargetKey)'), true);
+assert.equal(expandingBot.run('moneyInCents'), 400);
+finishBotTurns(expandingBot);
+assert.equal(expandingBot.run('moneyInCents'), 1100);
+assert.equal(expandingBot.run('playerStates.every(player => player.moneyInCents >= 0)'), true);
+const expandedBotResume = game(expandingBot.storage.get('tree-planting-game-save'));
+assert.equal(expandedBotResume.run('purchasedTileCoordinates[0].color'), 'yellow');
+assert.equal(expandedBotResume.run('tileObstacles.has(getTileKey(purchasedTileCoordinates[0].q, purchasedTileCoordinates[0].r))'), false);
+console.log('Bots buy adjacent tiles with their own balance, clear obstacles, plant on the cleared land, and preserve ownership on reload.');
+
+const treeObstacles = game();
+assert.equal(treeObstacles.run(`(() => {
+    let trees = 0;
+    for (let i = 0; i < 100; i++) {
+        const rolls = [(i + 0.5) / 100, 0];
+        Math.random = () => rolls.shift();
+        if (randomObstacleDefinition().stageIndex !== undefined) trees++;
+    }
+    return trees;
+})()`), 40, '40% of obstacle rolls choose trees, independently of the spawn chance');
+treeObstacles.run(`Math.random = () => 0.5; moneyInCents = 20000; startNewGame(false, 'green', false, 'maple');
+    window.treePositions = getGreyTileCoordinates();
+    treeObstacleDefinitions.forEach((definition, index) => {
+        const {q, r} = window.treePositions[index];
+        addTileObstacle(q, r, definition.key);
+    });
+    saveGame();`);
+assert.equal(treeObstacles.run('tileObstacles.size'), 24);
+assert.equal(treeObstacles.run('plantedSeeds.length'), 3, 'Obstacle trees do not become income-producing trees');
+assert.equal(treeObstacles.run('getCurrentPlayerIncome()'), 100);
+const treeObstacleResume = game(treeObstacles.storage.get('tree-planting-game-save'));
+assert.equal(treeObstacleResume.run('tileObstacles.size'), 24);
+assert.equal(treeObstacleResume.run('treeObstacleDefinitions.every(definition => [...tileObstacles.values()].some(obstacle => obstacle.key === definition.key && obstacle.element.getAttribute("href") === definition.image))'), true);
+treeObstacleResume.run(`window.treeHex = getPurchaseCandidates()[0];
+    if (!tileObstacles.has(getTileKey(window.treeHex.q, window.treeHex.r))) addTileObstacle(window.treeHex.q, window.treeHex.r, 'tree-oak-5');
+    window.treeKey = getTileKey(window.treeHex.q, window.treeHex.r);
+    window.claimedDefinition = tileObstacles.get(window.treeKey);
+    purchaseTile(window.treeHex.q, window.treeHex.r);`);
+assert.equal(treeObstacleResume.run('getPlantableTiles().some(({q,r}) => getTileKey(q,r) === window.treeKey)'), false);
+treeObstacleResume.run('clearTileObstacle(window.treeHex.q, window.treeHex.r)');
+assert.equal(treeObstacleResume.run('moneyInCents'), 17500);
+assert.equal(treeObstacleResume.run('tileObstacles.has(window.treeKey)'), false);
+assert.equal(treeObstacleResume.run('plantedSeeds.some(seed => getTileKey(seed.tile.q, seed.tile.r) === window.treeKey && seed.treeType === window.claimedDefinition.treeType && seed.stageIndex === window.claimedDefinition.stageIndex)'), true);
+assert.equal(treeObstacleResume.run('getCurrentPlayerIncome()'), treeObstacleResume.run('100 + treeGrowthStages[window.claimedDefinition.treeType][window.claimedDefinition.stageIndex].earningInCents'));
+const claimedResume = game(treeObstacleResume.storage.get('tree-planting-game-save'));
+assert.equal(claimedResume.run('getCurrentPlayerIncome()'), treeObstacleResume.run('getCurrentPlayerIncome()'));
+treeObstacleResume.run('window.claimIncome = getCurrentPlayerIncome(); collectPayout()');
+assert.equal(treeObstacleResume.run('playerStates.find(player => player.color === humanColor).moneyInCents'), treeObstacleResume.run('17500 + window.claimIncome'));
+console.log('40% of obstacle selections are trees; all 24 species/stage variants save, reload, retain species and stage when purchased, and earn income for their owner.');
+
+const treeBuyerBot = game();
+treeBuyerBot.run(`Math.random = () => 0.5; moneyInCents = 1000; startNewGame(false, 'green', false, 'maple');
+    for (const tile of [...availableTiles].filter(({q,r}) => getBoardTileColor(q,r) === 'yellow')) {
+        addPlantedSeed({x: tile.x, y: tile.y, treeType: 'maple', stageIndex: 0, upgradesInStage: 0});
+    }
+    getPurchaseCandidates('yellow').forEach(({q,r}) => addTileObstacle(q,r,'tree-oak-5'));
+    playerStates.find(player => player.color === 'yellow').moneyInCents = 2500;`);
+installBotClock(treeBuyerBot);
+treeBuyerBot.run('collectPayout(); window.beforeIncome = getCurrentPlayerIncome(); window.botTimers.shift()()');
+assert.equal(treeBuyerBot.run('moneyInCents'), 0, 'A bot can buy a tree tile without reserving removal or planting money');
+assert.equal(treeBuyerBot.run('purchasedTileCoordinates[0].color'), 'yellow');
+assert.equal(treeBuyerBot.run('getCurrentPlayerIncome()'), treeBuyerBot.run('window.beforeIncome + 600'));
+finishBotTurns(treeBuyerBot);
+assert.equal(treeBuyerBot.run('playerStates.find(player => player.color === "yellow").moneyInCents'), treeBuyerBot.run('window.beforeIncome + 600'));
+assert.equal(treeBuyerBot.run('getCurrentPlayerIncome()'), 100);
+console.log('Bots acquire tree obstacles for just the tile price and receive their income without paying removal costs.');

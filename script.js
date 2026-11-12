@@ -261,12 +261,30 @@ const boardTileKeys = new Set();
 const purchasedTileCoordinates = [];
 const tileObstacles = new Map();
 const plantedSeeds = [];
-const tileObstacleDefinitions = [
+const terrainObstacleDefinitions = [
     { key: "rock", image: "images/rock.png", clearCostInCents: 1000, label: "rock" },
     { key: "boulder", image: "images/boulder.png", clearCostInCents: 3000, label: "boulder" },
     { key: "burnt-tree", image: "images/burnt-tree.png", clearCostInCents: 2500, label: "burnt tree" },
 ];
+const treeObstacleDefinitions = ["maple", "birch", "spruce", "oak"].flatMap(treeType =>
+    treeGrowthStages[treeType].map((stage, stageIndex) => ({
+        key: `tree-${treeType}-${stageIndex}`,
+        treeType,
+        image: stage.image,
+        label: `${stage.name.toLowerCase()} obstacle`,
+        clearCostInCents: Math.max(100, stage.earningInCents * (stageIndex + 1)),
+        stageIndex,
+    }))
+);
+const tileObstacleDefinitions = [...terrainObstacleDefinitions, ...treeObstacleDefinitions];
+const treeObstacleChance = 0.4;
 const tileObstacleChance = 0.2;
+
+function randomObstacleDefinition() {
+    const pool = Math.random() >= 1 - treeObstacleChance
+        ? treeObstacleDefinitions : terrainObstacleDefinitions;
+    return pool[Math.floor(Math.random() * pool.length)];
+}
 let selectedSeed = null;
 let savedGameData = null;
 let hasStoredSave = false;
@@ -768,8 +786,13 @@ function openObstacleDialog(key, event) {
     obstaclePreviewImage.src = obstacle.image;
     obstaclePreviewImage.alt = name;
     const unowned = !boardTileKeys.has(key);
-    showLeafAmount(obstacleDescription, (obstacle.clearCostInCents / 100).toFixed(2),
-        unowned ? "Buy this hex for 25 leaves, then remove for " : "Click to remove for ", ".");
+    if (unowned && obstacle.treeType) {
+        const income = treeGrowthStages[obstacle.treeType][obstacle.stageIndex].earningInCents;
+        showLeafAmount(obstacleDescription, (income / 100).toFixed(2), "Buy this hex for 25 leaves to own this tree. Earns ", " each turn.");
+    } else {
+        showLeafAmount(obstacleDescription, (obstacle.clearCostInCents / 100).toFixed(2),
+            unowned ? "Buy this hex for 25 leaves, then remove for " : "Click to remove for ", ".");
+    }
     if (!obstacleDialog.open) obstacleDialog.show();
     positionHoverDialog(obstacleDialog, obstacle.element, event);
 }
@@ -789,13 +812,15 @@ function addTileObstacle(q, r, obstacleType = null) {
 
     const definition = obstacleType
         ? tileObstacleDefinitions.find((tileObstacle) => tileObstacle.key === obstacleType)
-        : tileObstacleDefinitions[Math.floor(Math.random() * tileObstacleDefinitions.length)];
+        : randomObstacleDefinition();
 
     if (!definition) return false;
 
     const { x, y } = getTileCenter(q, r);
     const obstacleImage = document.createElementNS(svgNamespace, "image");
-    const obstacleSize = definition.key === "boulder" ? 40 :
+    const obstacleSize = definition.stageIndex !== undefined
+        ? maximumTileImageSize * (0.7 + 0.3 * definition.stageIndex / maximumGrowthStage)
+        : definition.key === "boulder" ? 40 :
         definition.key === "rock" ? 36 : 38;
     // Allow larger artwork while clipping its corners to the tile's inner edge.
     const clipPoints = Array.from({ length: 6 }, (_, index) => {
@@ -862,7 +887,9 @@ function updateObstacleVisibility() {
         obstacle.element.setAttribute("aria-hidden", String(!visible));
         obstacle.element.setAttribute("tabindex", visible ? "0" : "-1");
         obstacle.element.setAttribute("aria-label", unowned
-            ? `Buy hex with ${obstacle.label} for 25 leaves. Removal costs ${obstacle.clearCostInCents / 100} leaves.`
+            ? obstacle.treeType
+                ? `Buy hex with ${obstacle.label} for 25 leaves. This tree will earn leaves for you.`
+                : `Buy hex with ${obstacle.label} for 25 leaves. Removal costs ${obstacle.clearCostInCents / 100} leaves.`
             : `Clear ${obstacle.label} for ${obstacle.clearCostInCents / 100} leaves.`);
         if (!visible) closeObstacleDialog(key);
     });
@@ -1277,6 +1304,7 @@ function scheduleBotTurn() {
     let actions = 0;
     let planted = false;
     let composted = false;
+    let expanded = false;
     const step = () => {
         if (version !== botTurnVersion || !gameStarted || !isBotTurn()) return;
         performingBotAction = true;
@@ -1286,11 +1314,31 @@ function scheduleBotTurn() {
             const plantingCost = selectedSeedType === "oak" ? oakSeedCostInCents : seedCostInCents;
             const upgrade = trees.filter(seed => seed.stageIndex < maximumGrowthStage && getSeedUpgradeCost(seed) <= moneyInCents)
                 .sort((a, b) => getSeedUpgradeCost(a) - getSeedUpgradeCost(b) || b.upgradesInStage - a.upgradesInStage)[0];
+            const needsSpace = getPlantableTiles().length === 0;
+            const obstacle = Array.from(tileObstacles.values())
+                .filter(({ q, r, clearCostInCents }) => boardTileKeys.has(getTileKey(q, r)) &&
+                    getBoardTileColor(q, r) === selectedColor && moneyInCents >= clearCostInCents + plantingCost)
+                .sort((a, b) => a.clearCostInCents - b.clearCostInCents)[0];
+            const expansion = getPurchaseCandidates(selectedColor)
+                .map(tile => {
+                    const obstacle = tileObstacles.get(getTileKey(tile.q, tile.r));
+                    return { ...tile, clearCost: obstacle?.treeType ? 0 : obstacle?.clearCostInCents ?? 0,
+                        plantingCost: obstacle?.treeType ? 0 : plantingCost };
+                })
+                .filter(tile => moneyInCents >= tileCostInCents + tile.clearCost + tile.plantingCost)
+                .sort((a, b) => a.clearCost - b.clearCost)[0];
             const name = selectedColor[0].toUpperCase() + selectedColor.slice(1);
             if (actions >= 8) {
                 collectPayout();
                 return;
-            } else if (!composted && getPlantableTiles().length === 0 && mature.length > 1) {
+            } else if (needsSpace && obstacle) {
+                clearTileObstacle(obstacle.q, obstacle.r);
+                payoutStatus.textContent = `${name} bot cleared an obstacle.`;
+            } else if (needsSpace && !expanded && expansion) {
+                purchaseTile(expansion.q, expansion.r);
+                expanded = true;
+                payoutStatus.textContent = `${name} bot bought a tile.`;
+            } else if (!composted && needsSpace && mature.length > 1) {
                 compostTree(mature[0]);
                 composted = true;
                 payoutStatus.textContent = `${name} bot composted a mature tree.`;
@@ -1378,6 +1426,7 @@ function continueGame() {
     });
     restoreSavedTileObstacles(savedGameData.obstacles ?? []);
     savedGameData.seeds.forEach(addPlantedSeed);
+    if (normalMode) [...tileObstacles.values()].forEach(({q, r}) => claimTreeObstacle(q, r));
     if (normalMode && !savedGameData.greyObstaclesGenerated) spawnRandomTileObstacles();
     if (playerStates.length === 0) initializePlayers();
     updateMoneyDisplay();
@@ -1571,9 +1620,8 @@ function getGreyTileCoordinates() {
     return coordinates;
 }
 
-function getPurchaseCandidates() {
+function getPurchaseCandidates(owner = humanColor ?? selectedColor) {
     if (startingTileCount === 1) return [];
-    const owner = humanColor ?? selectedColor;
     const candidates = new Map();
     boardTileCoordinates.forEach(({ q, r }) => {
         if (normalMode && getBoardTileColor(q, r) !== owner) return;
@@ -1625,14 +1673,27 @@ function updatePurchaseTiles() {
     updateBoardViewBox();
 }
 
+function claimTreeObstacle(q, r) {
+    const key = getTileKey(q, r);
+    const obstacle = tileObstacles.get(key);
+    if (!obstacle?.treeType || !boardTileKeys.has(key)) return;
+    closeObstacleDialog(key);
+    obstacle.element.remove();
+    tileObstacles.delete(key);
+    const { x, y } = getTileCenter(q, r);
+    availableTiles.push({ q, r, x, y });
+    addPlantedSeed({ treeType: obstacle.treeType, stageIndex: obstacle.stageIndex, upgradesInStage: 0, x, y });
+}
+
 function purchaseTile(q, r) {
-    if (!gameStarted || isBotTurn() || moneyInCents < tileCostInCents) return;
-    if (!getPurchaseCandidates().some(tile => tile.q === q && tile.r === r)) return;
+    if (!gameStarted || (isBotTurn() && !performingBotAction) || moneyInCents < tileCostInCents) return;
+    if (!getPurchaseCandidates(selectedColor).some(tile => tile.q === q && tile.r === r)) return;
     if (!addBoardTile(q, r, true)) return;
     closeObstacleDialog(getTileKey(q, r));
     if (!normalMode && currentLevel > 2 && Math.random() < tileObstacleChance) {
         addTileObstacle(q, r);
     }
+    if (normalMode) claimTreeObstacle(q, r);
     moneyInCents -= tileCostInCents;
     updateMoneyDisplay();
     saveGame();
