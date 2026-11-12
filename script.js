@@ -1227,7 +1227,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     document.querySelector(".tutorial-done-prompt").hidden = true;
     payoutControls.setAttribute("data-tutorial-focus", "false");
     selectedColor = normalMode ? color : null;
-    activeBoardColors = normalMode ? [color, ...["green", "yellow", "red"].filter(other => other !== color)].slice(0, playerCount) : null;
+    activeBoardColors = normalMode ? choosePlayerColors(color, playerCount) : null;
     tutorialCompleted = false;
     currentLevel = 1;
     startingTileCount = withTutorial ? 1 : withLevels ? 7 : 1 + 7 * activeBoardColors.length;
@@ -1247,7 +1247,17 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     startGame();
 }
 
+function choosePlayerColors(playerColor, count) {
+    const remainingColors = ["green", "yellow", "red"].filter(color => color !== playerColor);
+    for (let index = remainingColors.length - 1; index > 0; index -= 1) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [remainingColors[index], remainingColors[randomIndex]] = [remainingColors[randomIndex], remainingColors[index]];
+    }
+    return [playerColor, ...remainingColors].slice(0, count);
+}
+
 function plantStartingSprouts() {
+    const seedTypes = ["maple", "birch", "spruce", "oak"];
     for (const color of activeBoardColors) {
         const region = availableTiles.filter(({ q, r }) => getBoardTileColor(q, r) === color);
         const distanceSquared = ({ x, y }) => (x - centerX) ** 2 + (y - centerY) ** 2;
@@ -1255,7 +1265,7 @@ function plantStartingSprouts() {
             !farthest || distanceSquared(tile) > distanceSquared(farthest) ? tile : farthest, null);
         if (!farthestTile) continue;
         addPlantedSeed({
-            treeType: selectedSeedType,
+            treeType: color === selectedColor ? selectedSeedType : seedTypes[Math.floor(Math.random() * seedTypes.length)],
             x: farthestTile.x,
             y: farthestTile.y,
             stageIndex: 2,

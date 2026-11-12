@@ -890,7 +890,7 @@ assert.equal(freePlayResume.run('normalMode'), true);
 assert.equal(freePlayResume.elements.get('.level-row').hidden, true);
 const freeBalance = freePlayResume.run('moneyInCents');
 freePlayResume.elements.get('.done-button').events.click();
-assert.equal(freePlayResume.run('moneyInCents'), freeBalance + 540);
+assert.equal(freePlayResume.run('moneyInCents'), freeBalance + freePlayResume.run('plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0)'));
 console.log('Normal mode hides and disables levels, retains its board, saves mode, and continues payouts.');
 
 for (const count of [1, 2, 3]) {
@@ -983,7 +983,7 @@ for (const seedType of ['maple', 'birch', 'spruce', 'oak']) {
     assert.equal(seedSetup.run('gameStarted'), true);
     assert.equal(seedSetup.run('selectedSeedType'), seedType);
     assert.equal(seedSetup.run('plantedSeeds.length'), 3);
-    assert.equal(seedSetup.run('plantedSeeds.every(seed => seed.stageIndex === 2 && seed.treeType === selectedSeedType)'), true);
+    assert.equal(seedSetup.run('plantedSeeds.every(seed => seed.stageIndex === 2 && (getBoardTileColor(seed.tile.q, seed.tile.r) !== selectedColor || seed.treeType === selectedSeedType))'), true);
     for (const type of ['maple', 'birch', 'spruce', 'oak']) {
         const button = seedSetup.elements.get(`.plant-${type}-button`);
         assert.equal(button.hidden, type !== seedType);
@@ -993,14 +993,14 @@ for (const seedType of ['maple', 'birch', 'spruce', 'oak']) {
         assert.equal(seedSetup.run('plantedSeeds.length'), beforeCount + (type === seedType ? 1 : 0));
         if (type !== seedType) assert.equal(seedSetup.run('moneyInCents'), beforeBalance);
     }
-    assert.equal(seedSetup.run('plantedSeeds.every(seed => seed.treeType === selectedSeedType)'), true);
+    assert.equal(seedSetup.run('plantedSeeds.filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor).every(seed => seed.treeType === selectedSeedType)'), true);
     const seedResume = game(seedSetup.storage.get('tree-planting-game-save'));
     assert.equal(seedResume.run('selectedSeedType'), seedType);
     assert.equal(seedResume.elements.get(`.plant-${seedType}-button`).hidden, false);
     assert.notEqual(seedResume.elements.get('.color-dialog').open, true);
     seedResume.run('plantSeed()');
     assert.equal(seedResume.run('plantedSeeds.length'), 5);
-    assert.equal(seedResume.run('plantedSeeds.every(seed => seed.treeType === selectedSeedType)'), true);
+    assert.equal(seedResume.run('plantedSeeds.filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor).every(seed => seed.treeType === selectedSeedType)'), true);
     const legacySeedSave = JSON.parse(seedSetup.storage.get('tree-planting-game-save'));
     delete legacySeedSave.selectedSeedType;
     const legacySeedGame = game(JSON.stringify(legacySeedSave));
@@ -1037,3 +1037,23 @@ assert.equal(combinedSetup.run('selectedColor'), 'red');
 assert.equal(combinedSetup.run('selectedSeedType'), 'oak');
 assert.equal(combinedSetup.elements.get('.color-dialog').open, false);
 console.log('Combined setup previews color and seed, supports changing selections, and starts only on Done.');
+
+for (const randomValue of [0, 0.99]) {
+    const randomPlayers = game();
+    randomPlayers.run(`Math.random = () => ${randomValue}`);
+    randomPlayers.elements.get('.menu-normal-button').events.click();
+    randomPlayers.elements.get('.player-count-slider').value = '2';
+    randomPlayers.elements.get('.player-count-slider').events.input();
+    randomPlayers.elements.get('.choose-green').events.click();
+    randomPlayers.elements.get('.choose-seed-birch').events.click();
+    randomPlayers.elements.get('.setup-done-button').events.click();
+    assert.equal(randomPlayers.run('activeBoardColors[0]'), 'green');
+    assert.equal(randomPlayers.run('activeBoardColors[1]'), randomValue === 0 ? 'red' : 'yellow');
+    assert.equal(randomPlayers.run('plantedSeeds[0].treeType'), 'birch');
+    assert.equal(randomPlayers.run('plantedSeeds[1].treeType'), randomValue === 0 ? 'maple' : 'oak');
+    const savedRandomPlayers = randomPlayers.storage.get('tree-planting-game-save');
+    const resumedRandomPlayers = game(savedRandomPlayers);
+    assert.equal(JSON.stringify(resumedRandomPlayers.run('activeBoardColors')), JSON.stringify(randomPlayers.run('activeBoardColors')));
+    assert.equal(JSON.stringify(resumedRandomPlayers.run('plantedSeeds.map(seed => seed.treeType)')), JSON.stringify(randomPlayers.run('plantedSeeds.map(seed => seed.treeType)')));
+}
+console.log('Other player colors and seed types are randomized, preserve the chosen player, and stay fixed on reload.');
