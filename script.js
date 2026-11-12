@@ -305,6 +305,7 @@ function saveGame() {
         matureTreesComposted,
         moneyInCents,
         additionalTiles: purchasedTileCoordinates.map(({ q, r, color }) => ({ q, r, color })),
+        greyObstaclesGenerated: normalMode,
         obstacles: Array.from(tileObstacles.values()).map(({ q, r, key }) => ({
             q,
             r,
@@ -466,7 +467,8 @@ function isValidSaveData(data) {
             !Number.isInteger(obstacle.q) ||
             !Number.isInteger(obstacle.r) ||
             !obstacleTypes.has(obstacle.type) ||
-            !knownTileKeys.has(`${obstacle.q},${obstacle.r}`)
+            (!knownTileKeys.has(`${obstacle.q},${obstacle.r}`) &&
+                !(data.normalMode !== false && Math.max(Math.abs(obstacle.q), Math.abs(obstacle.r), Math.abs(obstacle.q + obstacle.r)) <= 5))
         ) {
             return false;
         }
@@ -758,14 +760,16 @@ function positionHoverDialog(dialog, element, event) {
 
 function openObstacleDialog(key, event) {
     const obstacle = tileObstacles.get(key);
-    if (!obstacle) return;
+    if (!obstacle || !isObstacleVisible(obstacle)) return;
     closeSeedDialog(selectedSeed);
     selectedObstacle = key;
     const name = obstacle.label.charAt(0).toUpperCase() + obstacle.label.slice(1);
     obstacleDialogTitle.textContent = name;
     obstaclePreviewImage.src = obstacle.image;
     obstaclePreviewImage.alt = name;
-    showLeafAmount(obstacleDescription, (obstacle.clearCostInCents / 100).toFixed(2), "Click to remove for ", ".");
+    const unowned = !boardTileKeys.has(key);
+    showLeafAmount(obstacleDescription, (obstacle.clearCostInCents / 100).toFixed(2),
+        unowned ? "Buy this hex for 25 leaves, then remove for " : "Click to remove for ", ".");
     if (!obstacleDialog.open) obstacleDialog.show();
     positionHoverDialog(obstacleDialog, obstacle.element, event);
 }
@@ -777,7 +781,9 @@ function closeObstacleDialog(key) {
 }
 
 function addTileObstacle(q, r, obstacleType = null) {
-    if (normalMode || currentLevel === 1) return false;
+    if (!normalMode && currentLevel === 1) return false;
+    if (!boardTileKeys.has(getTileKey(q, r)) &&
+        !(normalMode && Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) <= 5)) return false;
     const key = getTileKey(q, r);
     if (tileObstacles.has(key)) return false;
 
@@ -820,17 +826,18 @@ function addTileObstacle(q, r, obstacleType = null) {
     obstacleImage.addEventListener("blur", () => closeObstacleDialog(key));
     obstacleImage.addEventListener("click", (event) => {
         event.stopPropagation();
-        clearTileObstacle(q, r);
+        activateObstacle(q, r);
     });
     obstacleImage.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            clearTileObstacle(q, r);
+            activateObstacle(q, r);
         }
     });
     tiles.append(obstacleImage);
 
     tileObstacles.set(key, { ...definition, q, r, element: obstacleImage });
+    updateObstacleVisibility();
     const availableTileIndex = availableTiles.findIndex(
         (tile) => Math.abs(tile.x - x) < 0.001 && Math.abs(tile.y - y) < 0.001
     );
@@ -840,11 +847,41 @@ function addTileObstacle(q, r, obstacleType = null) {
     return true;
 }
 
+function isObstacleVisible({ q, r }) {
+    if (!normalMode) return true;
+    const owner = humanColor ?? selectedColor;
+    const ownedByHuman = (q, r) => boardTileKeys.has(getTileKey(q, r)) && getBoardTileColor(q, r) === owner;
+    return ownedByHuman(q, r) || tileNeighborOffsets.some(([dq, dr]) => ownedByHuman(q + dq, r + dr));
+}
+
+function updateObstacleVisibility() {
+    tileObstacles.forEach((obstacle, key) => {
+        const visible = isObstacleVisible(obstacle);
+        const unowned = !boardTileKeys.has(key);
+        obstacle.element.style.display = visible ? "" : "none";
+        obstacle.element.setAttribute("aria-hidden", String(!visible));
+        obstacle.element.setAttribute("tabindex", visible ? "0" : "-1");
+        obstacle.element.setAttribute("aria-label", unowned
+            ? `Buy hex with ${obstacle.label} for 25 leaves. Removal costs ${obstacle.clearCostInCents / 100} leaves.`
+            : `Clear ${obstacle.label} for ${obstacle.clearCostInCents / 100} leaves.`);
+        if (!visible) closeObstacleDialog(key);
+    });
+}
+
+function activateObstacle(q, r) {
+    const key = getTileKey(q, r);
+    const obstacle = tileObstacles.get(key);
+    if (!obstacle || !isObstacleVisible(obstacle)) return;
+    if (normalMode && !boardTileKeys.has(key)) purchaseTile(q, r);
+    else clearTileObstacle(q, r);
+}
+
 function clearTileObstacle(q, r) {
     if (isBotTurn() && !performingBotAction) return;
     const key = getTileKey(q, r);
     const obstacle = tileObstacles.get(key);
     if (!obstacle) return false;
+    if (normalMode && (!boardTileKeys.has(key) || getBoardTileColor(q, r) !== selectedColor)) return false;
     if (moneyInCents < obstacle.clearCostInCents) return false;
 
     moneyInCents -= obstacle.clearCostInCents;
@@ -860,7 +897,13 @@ function clearTileObstacle(q, r) {
 }
 
 function spawnRandomTileObstacles() {
-    if (normalMode || currentLevel === 1) return;
+    if (normalMode) {
+        getGreyTileCoordinates().forEach(({ q, r }) => {
+            if (Math.random() < tileObstacleChance) addTileObstacle(q, r);
+        });
+        return;
+    }
+    if (currentLevel === 1) return;
     if (currentLevel === 2) {
         if (tileObstacles.size > 0 || availableTiles.length === 0) return;
         const { q, r } = availableTiles[Math.floor(Math.random() * availableTiles.length)];
@@ -880,7 +923,8 @@ function restoreSavedTileObstacles(obstacles = []) {
         if (
             !Number.isInteger(q) ||
             !Number.isInteger(r) ||
-            !boardTileKeys.has(getTileKey(q, r))
+            (!boardTileKeys.has(getTileKey(q, r)) &&
+                !(normalMode && Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) <= 5))
         ) {
             return;
         }
@@ -955,7 +999,7 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
     surface.setAttribute("points", topEdge.join(" "));
     tileBody.append(surface);
     tiles.prepend(tileBody);
-    availableTiles.push({ q, r, x, y });
+    if (!tileObstacles.has(key)) availableTiles.push({ q, r, x, y });
     boardTileCoordinates.push({ q, r });
     boardTileKeys.add(key);
     if (isPurchased) {
@@ -1334,6 +1378,7 @@ function continueGame() {
     });
     restoreSavedTileObstacles(savedGameData.obstacles ?? []);
     savedGameData.seeds.forEach(addPlantedSeed);
+    if (normalMode && !savedGameData.greyObstaclesGenerated) spawnRandomTileObstacles();
     if (playerStates.length === 0) initializePlayers();
     updateMoneyDisplay();
     if (normalMode && (!selectedColor || !selectedSeedType)) {
@@ -1543,6 +1588,7 @@ function getPurchaseCandidates() {
 }
 
 function updatePurchaseTiles() {
+    updateObstacleVisibility();
     purchaseTileElements.forEach(element => element.remove());
     purchaseTileElements.clear();
     if (gameStarted && normalMode) {
@@ -1583,6 +1629,7 @@ function purchaseTile(q, r) {
     if (!gameStarted || isBotTurn() || moneyInCents < tileCostInCents) return;
     if (!getPurchaseCandidates().some(tile => tile.q === q && tile.r === r)) return;
     if (!addBoardTile(q, r, true)) return;
+    closeObstacleDialog(getTileKey(q, r));
     if (!normalMode && currentLevel > 2 && Math.random() < tileObstacleChance) {
         addTileObstacle(q, r);
     }

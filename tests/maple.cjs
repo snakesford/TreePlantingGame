@@ -1186,7 +1186,7 @@ for (const color of ['green', 'yellow', 'red']) {
     assert.equal(expansion.run('moneyInCents'), 2500);
     assert.equal(expansion.run('getBoardTileColor(window.targetHex.q, window.targetHex.r)'), color);
     assert.equal(expansion.run('purchaseTileElements.has(getTileKey(window.targetHex.q, window.targetHex.r))'), false);
-    assert.equal(expansion.run('getPlantableTiles().some(tile => tile.q === window.targetHex.q && tile.r === window.targetHex.r)'), true);
+    assert.equal(expansion.run('getPlantableTiles().some(tile => tile.q === window.targetHex.q && tile.r === window.targetHex.r)'), expansion.run('!tileObstacles.has(getTileKey(window.targetHex.q, window.targetHex.r))'));
     expansion.run('window.oldHex.events.click()');
     assert.equal(expansion.run('moneyInCents'), 2500, 'Repeated clicks must not charge twice');
     const restored = game(expansion.storage.get('tree-planting-game-save'));
@@ -1221,3 +1221,33 @@ for (const count of [1, 2, 3]) {
     assert.equal(largeBoard.run('purchaseTileElements.size + boardTileKeys.size'), 91);
 }
 console.log('All player counts share a fixed 91-space hexagon with six tiles per side; purchases and reloads retain its outline.');
+
+const fog = game();
+fog.run(`Math.random = () => 0; moneyInCents = 20000; startNewGame(false, 'green', false, 'maple')`);
+assert.equal(fog.run('tileObstacles.size'), 69, 'All grey spaces can contain obstacles');
+assert.equal(fog.run('tileObstacles.get("5,0").element.style.display'), 'none');
+assert.equal(fog.run('tileObstacles.get("5,0").element.getAttribute("tabindex")'), '-1');
+fog.run('openObstacleDialog("5,0"); activateObstacle(5,0); clearTileObstacle(5,0)');
+assert.notEqual(fog.elements.get('.obstacle-dialog').open, true);
+assert.equal(fog.run('moneyInCents'), 20000);
+fog.run('window.near = getPurchaseCandidates()[0]; window.nearKey = getTileKey(window.near.q, window.near.r)');
+assert.equal(fog.run('tileObstacles.get(window.nearKey).element.style.display'), '');
+fog.run('window.hiddenBefore = [...tileObstacles.values()].filter(obstacle => !isObstacleVisible(obstacle)).map(({q,r}) => getTileKey(q,r)); activateObstacle(window.near.q, window.near.r)');
+assert.equal(fog.run('moneyInCents'), 17500);
+assert.equal(fog.run('getPlantableTiles().some(({q,r}) => getTileKey(q,r) === window.nearKey)'), false);
+assert.equal(fog.run('window.hiddenBefore.some(key => isObstacleVisible(tileObstacles.get(key)))'), true);
+fog.run('activateObstacle(window.near.q, window.near.r)');
+assert.equal(fog.run('moneyInCents'), 16500);
+assert.equal(fog.run('tileObstacles.has(window.nearKey)'), false);
+assert.equal(fog.run('getPlantableTiles().some(({q,r}) => getTileKey(q,r) === window.nearKey)'), true);
+const fogSave = fog.storage.get('tree-planting-game-save');
+const fogResume = game(fogSave);
+assert.equal(fogResume.run('gameStarted'), true);
+assert.equal(JSON.stringify(JSON.parse(fogResume.storage.get('tree-planting-game-save')).obstacles), JSON.stringify(JSON.parse(fogSave).obstacles));
+assert.equal(fogResume.run('tileObstacles.get("5,0").element.style.display'), 'none');
+fogResume.run('collectPayout()');
+assert.equal(fogResume.run('tileObstacles.get("5,0").element.style.display'), 'none', 'Bot turns must not reveal remote obstacles');
+const invalidFog = JSON.parse(fogSave);
+invalidFog.obstacles.push({q: 6, r: 0, type: 'rock'});
+assert.equal(game(JSON.stringify(invalidFog)).run('gameStarted'), false);
+console.log('Grey obstacles stay hidden until adjacent, reveal on expansion, require purchase before clearing, block planting, and persist without rerolling.');
