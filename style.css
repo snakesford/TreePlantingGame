@@ -335,16 +335,17 @@ main {
 
 .hex-tile {
     fill: #5b9b66;
-    stroke: #f4f6f1;
-    stroke-width: 2;
+    stroke: none;
 }
 
 .tile-body {
     cursor: pointer;
 }
 
-.tile-body:active {
-    filter: brightness(0.72);
+.tile-press-overlay {
+    fill: #10291a;
+    fill-opacity: 0.45;
+    pointer-events: none;
 }
 
 .tile-bevel,

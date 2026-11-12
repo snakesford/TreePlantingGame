@@ -14,6 +14,7 @@ class Element {
     setAttribute(key, value) { this.attrs[key] = value; }
     getAttribute(key) { return this.attrs[key]; }
     addEventListener(key, callback) { this.events[key] = callback; }
+    setPointerCapture(pointerId) { this.capturedPointer = pointerId; }
     replaceChildren(...children) {
         this.children = children;
         this.textContent = children.filter(child => typeof child === "string").join("");
@@ -632,3 +633,26 @@ assert.equal(restoredLayout.run('plantedSeeds.length'), 1);
 assert.equal(JSON.stringify(restoredLayout.run('boardTileCoordinates')),
     JSON.stringify(previousLayout.run('boardTileCoordinates')));
 console.log('Partial rings remain centered and old layouts load without moving trees.');
+
+const pressFeedback = game();
+pressFeedback.elements.get('.plant-maple-button').events.click();
+for (let stage = 0; stage <= pressFeedback.run('maximumGrowthStage'); stage += 1) {
+    pressFeedback.run(`plantedSeeds[0].stageIndex = ${stage}; updateSeedAppearance(plantedSeeds[0])`);
+    const tree = pressFeedback.run('plantedSeeds[0].image');
+    tree.events.pointerdown({ button: 0, pointerId: 1 });
+    const overlay = pressFeedback.run('tilePressOverlay');
+    assert.equal(overlay.getAttribute('class'), 'tile-press-overlay');
+    assert.equal(overlay.getAttribute('points'), pressFeedback.run('pressedTreeTile.getAttribute("data-points")'));
+    assert.equal(tree.capturedPointer, 1);
+    tree.events.lostpointercapture();
+    assert.equal(overlay.removed, true);
+    assert.equal(pressFeedback.run('tilePressOverlay'), null);
+}
+const emptyTile = pressFeedback.run('tileElements.get(getTileKey(availableTiles[0].q, availableTiles[0].r))');
+emptyTile.events.pointerdown({ button: 0, pointerId: 2 });
+assert.ok(pressFeedback.run('tilePressOverlay'));
+pressFeedback.run('releasePressedTreeTile()');
+assert.equal(pressFeedback.run('tilePressOverlay'), null);
+emptyTile.events.pointerdown({ button: 2, pointerId: 3 });
+assert.equal(pressFeedback.run('tilePressOverlay'), null);
+console.log('Tile press feedback covers every tree stage and empty tiles, clears on release, and ignores right-clicks.');

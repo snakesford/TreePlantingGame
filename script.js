@@ -1,4 +1,30 @@
 const tiles = document.querySelector(".hex-tiles");
+const tileElements = new Map();
+let pressedTreeTile = null;
+let tilePressOverlay = null;
+
+function pressTile(key, event, target) {
+    if (event.button !== 0) return;
+    releasePressedTreeTile();
+    pressedTreeTile = tileElements.get(key);
+    if (!pressedTreeTile) return;
+    tilePressOverlay = document.createElementNS(svgNamespace, "polygon");
+    tilePressOverlay.setAttribute("class", "tile-press-overlay");
+    tilePressOverlay.setAttribute("points", pressedTreeTile.getAttribute("data-points"));
+    // Paint above the tree artwork so the feedback stays visible at every stage.
+    tiles.append(tilePressOverlay);
+    target.setPointerCapture(event.pointerId);
+}
+
+function releasePressedTreeTile() {
+    if (tilePressOverlay) tilePressOverlay.remove();
+    tilePressOverlay = null;
+    pressedTreeTile = null;
+}
+
+window.addEventListener("pointerup", releasePressedTreeTile);
+window.addEventListener("pointercancel", releasePressedTreeTile);
+window.addEventListener("blur", releasePressedTreeTile);
 const levelProgress = document.querySelector(".level-progress");
 const levelLabel = document.querySelector(".level-label");
 const nextLevelButton = document.querySelector(".next-level-button");
@@ -512,6 +538,8 @@ function resetBoard() {
     closeSeedDialog(selectedSeed);
     closeObstacleDialog(selectedObstacle);
     tiles.replaceChildren();
+    releasePressedTreeTile();
+    tileElements.clear();
     plantedSeeds.length = 0;
     availableTiles.length = 0;
     boardTileCoordinates.length = 0;
@@ -695,9 +723,10 @@ function addBoardTile(q, r, isPurchased = false) {
     if (boardTileKeys.has(key)) return false;
 
     const { x, y } = getTileCenter(q, r);
+    const tileRadius = radius - 1.2;
     const points = Array.from({ length: 6 }, (_, index) => {
         const angle = ((index * 60 - 90) * Math.PI) / 180;
-        return `${x + radius * Math.cos(angle)},${y + radius * Math.sin(angle)}`;
+        return `${x + tileRadius * Math.cos(angle)},${y + tileRadius * Math.sin(angle)}`;
     }).join(" ");
     const tile = document.createElementNS(svgNamespace, "polygon");
 
@@ -705,13 +734,17 @@ function addBoardTile(q, r, isPurchased = false) {
     tile.setAttribute("points", points);
     const tileBody = document.createElementNS(svgNamespace, "g");
     tileBody.setAttribute("class", "tile-body");
+    tileBody.setAttribute("data-points", points);
+    tileBody.addEventListener("pointerdown", (event) => pressTile(key, event, tileBody));
+    tileBody.addEventListener("lostpointercapture", releasePressedTreeTile);
+    tileElements.set(key, tileBody);
     tileBody.append(tile);
 
     const bevelPoints = (size, yOffset = 0) => Array.from({ length: 6 }, (_, index) => {
         const angle = ((index * 60 - 90) * Math.PI) / 180;
         return `${x + size * Math.cos(angle)},${y + yOffset + size * Math.sin(angle)}`;
     });
-    const outerEdge = bevelPoints(radius - 1);
+    const outerEdge = bevelPoints(tileRadius);
     const topEdge = bevelPoints(radius - 5, -1);
     const edgeColors = ["#9ac68a", "#679b60", "#365f38", "#284c30", "#305a37", "#78a76b"];
 
@@ -772,6 +805,10 @@ function addPlantedSeed(seedData) {
     const seedState = { ...seedData, treeType: seedData.treeType ?? "standard", image, tile };
 
     image.setAttribute("class", "planted-seed");
+    image.addEventListener("pointerdown", (event) => {
+        pressTile(getTileKey(tile.q, tile.r), event, image);
+    });
+    image.addEventListener("lostpointercapture", releasePressedTreeTile);
     updateSeedAppearance(seedState);
     image.addEventListener("mouseenter", (event) => openSeedDialog(seedState, event));
     image.addEventListener("mousemove", (event) => {
