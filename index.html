@@ -55,7 +55,10 @@
       <g class="hex-tiles"></g>
     </svg>
   </main>
+  <p class="tutorial-plant-prompt tutorial-upgrade-prompt" role="status" hidden>Click to upgrade</p>
+  <p class="tutorial-plant-prompt tutorial-sprout-prompt" role="status" hidden>Upgrade to a sprout</p>
   <div class="game-actions">
+    <p class="tutorial-plant-prompt" role="status" hidden>Click to plant a seed!</p>
     <button class="plant-maple-button" type="button">
       <img class="seed-button-icon" src="images/maple/seed.png" alt="" width="48" height="48" />
       <span>Plant Maple Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />1</span>
@@ -81,6 +84,13 @@
       <button class="continue-game-button" type="button">Continue</button>
       <button class="new-game-button" type="button">Start New Game</button>
       <button class="tutorial-button" type="button">Start with Tutorial</button>
+    </div>
+  </dialog>
+  <dialog class="tutorial-welcome-dialog" aria-labelledby="tutorial-welcome-title">
+    <h1 id="tutorial-welcome-title">Welcome to the tutorial!</h1>
+    <p>Let’s grow your first tree. Start with a maple seed and watch it grow!</p>
+    <div class="save-slot-actions">
+      <button class="tutorial-welcome-dismiss" type="button" autofocus>Let’s begin</button>
     </div>
   </dialog>
   <dialog class="seed-dialog" aria-labelledby="seed-dialog-title">

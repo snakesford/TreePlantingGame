@@ -367,6 +367,7 @@ main {
 }
 
 .game-actions {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-self: center;
@@ -374,6 +375,71 @@ main {
     gap: 12px;
     margin-bottom: max(24px, env(safe-area-inset-bottom));
     padding: 0 12px;
+}
+
+.tutorial-plant-prompt {
+    position: absolute;
+    z-index: 2;
+    bottom: calc(100% + 38px);
+    left: 50%;
+    transform: translateX(-50%) rotate(-2deg);
+    width: max-content;
+    max-width: calc(100vw - 48px);
+    box-sizing: border-box;
+    margin: 0;
+    padding: 14px 22px;
+    border: 2px solid #a9ed86;
+    border-radius: 14px;
+    background: linear-gradient(160deg, #65b947, #327b35);
+    box-shadow: 0 6px 0 #205627, 0 12px 20px rgb(25 65 30 / 25%), inset 0 2px 0 rgb(255 255 255 / 30%);
+    color: #fff;
+    font: 800 1.1rem/1.3 sans-serif;
+    text-align: center;
+    text-shadow: 0 2px 1px #205627;
+    pointer-events: none;
+}
+
+.tutorial-plant-prompt::before,
+.tutorial-plant-prompt::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.tutorial-plant-prompt::before {
+    top: calc(100% + 6px);
+    width: 8px;
+    height: 16px;
+    background: #327b35;
+    box-shadow: 2px 0 0 #205627;
+}
+
+.tutorial-plant-prompt::after {
+    top: calc(100% + 20px);
+    border-left: 13px solid transparent;
+    border-right: 13px solid transparent;
+    border-top: 14px solid #327b35;
+    filter: drop-shadow(0 3px 0 #205627);
+}
+
+.tutorial-upgrade-prompt {
+    position: fixed;
+    bottom: auto;
+    transform: translate(-50%, -100%) rotate(-2deg);
+}
+
+.tutorial-sprout-prompt {
+    position: fixed;
+    bottom: auto;
+    padding: 12px;
+    transform: translate(-100%, -50%);
+    font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+}
+
+.tutorial-sprout-prompt::before,
+.tutorial-sprout-prompt::after {
+    display: none;
 }
 
 .game-actions button {
@@ -418,7 +484,8 @@ main {
     outline-offset: 3px;
 }
 
-.save-slot-dialog {
+.save-slot-dialog,
+.tutorial-welcome-dialog {
     position: fixed;
     inset: 50% auto auto 50%;
     width: min(90vw, 360px);
@@ -431,16 +498,19 @@ main {
     font-family: sans-serif;
 }
 
-.save-slot-dialog::backdrop {
+.save-slot-dialog::backdrop,
+.tutorial-welcome-dialog::backdrop {
     background: rgb(26 39 28 / 55%);
 }
 
-.save-slot-dialog h1 {
+.save-slot-dialog h1,
+.tutorial-welcome-dialog h1 {
     margin: 0 0 16px;
     text-align: center;
 }
 
-.save-slot-summary {
+.save-slot-summary,
+.tutorial-welcome-dialog p {
     color: #526653;
     line-height: 1.5;
     text-align: center;

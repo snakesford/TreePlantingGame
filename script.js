@@ -53,6 +53,10 @@ const saveSlotSummary = document.querySelector(".save-slot-summary");
 const continueGameButton = document.querySelector(".continue-game-button");
 const newGameButton = document.querySelector(".new-game-button");
 const tutorialButton = document.querySelector(".tutorial-button");
+const tutorialWelcomeDialog = document.querySelector(".tutorial-welcome-dialog");
+let tutorialPromptReady = false;
+let tutorialUpgradeSeed = null;
+let tutorialUpgradeReady = false;
 const saveStatus = document.querySelector(".save-status");
 const seedDialog = document.querySelector(".seed-dialog");
 const seedDialogTitle = document.querySelector("#seed-dialog-title");
@@ -238,6 +242,7 @@ function showLeafAmount(element, amount, prefix = "", suffix = "") {
 
 function saveGame() {
     updateLevelProgress();
+    updateTutorialUpgradePrompt();
     if (!gameStarted) return;
 
     const saveData = {
@@ -448,10 +453,51 @@ function countCycleTicks(cycleTime, tickTimes) {
     );
 }
 
+function updateTutorialUpgradePrompt() {
+    const prompt = document.querySelector(".tutorial-upgrade-prompt");
+    const seed = plantedSeeds[0];
+    const sproutPrompt = document.querySelector(".tutorial-sprout-prompt");
+    sproutPrompt.hidden = startingTileCount !== 1 || !seed || seed.stageIndex >= 2 ||
+        (seed.stageIndex === 0 && seed.upgradesInStage === 0);
+    if (!sproutPrompt.hidden) {
+        const tile = tileElements.get(getTileKey(seed.tile.q, seed.tile.r));
+        const bounds = tile.getBoundingClientRect();
+        sproutPrompt.style.left = `${bounds.left - 16}px`;
+        sproutPrompt.style.top = `${bounds.top + bounds.height / 2}px`;
+        sproutPrompt.style.maxWidth = `${Math.max(0, bounds.left - 28)}px`;
+    }
+    prompt.hidden = startingTileCount !== 1 || !seed || seed.stageIndex > 0 || seed.upgradesInStage > 0;
+    if (prompt.hidden) {
+        tutorialUpgradeSeed = null;
+        tutorialUpgradeReady = false;
+        return;
+    }
+    if (tutorialUpgradeSeed !== seed) {
+        tutorialUpgradeSeed = seed;
+        tutorialUpgradeReady = false;
+        window.setTimeout(() => {
+            if (tutorialUpgradeSeed !== seed) return;
+            tutorialUpgradeReady = true;
+            updateTutorialUpgradePrompt();
+        }, 700);
+    }
+    prompt.hidden = !tutorialUpgradeReady;
+    if (prompt.hidden) return;
+    const tile = tileElements.get(getTileKey(seed.tile.q, seed.tile.r));
+    const bounds = tile.getBoundingClientRect();
+    prompt.style.left = `${bounds.left + bounds.width / 2}px`;
+    prompt.style.top = `${bounds.top - 40}px`;
+}
+
+window.addEventListener("resize", updateTutorialUpgradePrompt);
+window.addEventListener("scroll", updateTutorialUpgradePrompt);
+
 function updateMoneyDisplay() {
     updateLevelProgress();
     const tutorialActive = startingTileCount === 1;
     plantMapleButton.hidden = false;
+    document.querySelector(".game-actions .tutorial-plant-prompt").hidden = !tutorialActive || !tutorialPromptReady || plantedSeeds.length > 0;
+    updateTutorialUpgradePrompt();
     [plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton].forEach((button) => {
         button.hidden = tutorialActive;
     });
@@ -1047,8 +1093,23 @@ function startGame() {
         window.setInterval(saveGame, 1000);
     }
     saveSlotDialog.close();
+    if (startingTileCount === 1 && plantedSeeds.length === 0) {
+        tutorialPromptReady = false;
+        updateMoneyDisplay();
+        tutorialWelcomeDialog.showModal();
+    }
     saveGame();
 }
+
+document.querySelector(".tutorial-welcome-dismiss").addEventListener("click", () => {
+    tutorialWelcomeDialog.close();
+});
+tutorialWelcomeDialog.addEventListener("close", () => {
+    window.setTimeout(() => {
+        tutorialPromptReady = true;
+        updateMoneyDisplay();
+    }, 700);
+});
 
 function continueGame() {
     if (!savedGameData || !isValidSaveData(savedGameData)) return;
