@@ -858,6 +858,7 @@ assert.equal(unchosen.elements.get('.plant-maple-button').disabled, true);
 const oldColorSave = JSON.parse(refreshedModeMenu.storage.get('tree-planting-game-save'));
 delete oldColorSave.selectedColor;
 delete oldColorSave.activeBoardColors;
+delete oldColorSave.playerStates;
 const oldColorGame = game(JSON.stringify(oldColorSave));
 oldColorGame.run('continueGame()');
 assert.equal(oldColorGame.elements.get('.color-dialog').open, true);
@@ -889,8 +890,10 @@ freePlayResume.run('continueGame()');
 assert.equal(freePlayResume.run('normalMode'), true);
 assert.equal(freePlayResume.elements.get('.level-row').hidden, true);
 const freeBalance = freePlayResume.run('moneyInCents');
+const freeIncome = freePlayResume.run('getCurrentPlayerIncome()');
 freePlayResume.elements.get('.done-button').events.click();
-assert.equal(freePlayResume.run('moneyInCents'), freeBalance + freePlayResume.run('plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0)'));
+assert.equal(freePlayResume.run('playerStates.find(player => player.color === "yellow").moneyInCents'), freeBalance + freeIncome);
+assert.equal(freePlayResume.run('selectedColor'), 'red');
 console.log('Normal mode hides and disables levels, retains its board, saves mode, and continues payouts.');
 
 for (const count of [1, 2, 3]) {
@@ -1003,6 +1006,7 @@ for (const seedType of ['maple', 'birch', 'spruce', 'oak']) {
     assert.equal(seedResume.run('plantedSeeds.filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor).every(seed => seed.treeType === selectedSeedType)'), true);
     const legacySeedSave = JSON.parse(seedSetup.storage.get('tree-planting-game-save'));
     delete legacySeedSave.selectedSeedType;
+    delete legacySeedSave.playerStates;
     const legacySeedGame = game(JSON.stringify(legacySeedSave));
     assert.equal(legacySeedGame.elements.get('.color-dialog').open, true);
     legacySeedGame.elements.get(`.choose-seed-${seedType}`).events.click();
@@ -1057,3 +1061,59 @@ for (const randomValue of [0, 0.99]) {
     assert.equal(JSON.stringify(resumedRandomPlayers.run('plantedSeeds.map(seed => seed.treeType)')), JSON.stringify(randomPlayers.run('plantedSeeds.map(seed => seed.treeType)')));
 }
 console.log('Other player colors and seed types are randomized, preserve the chosen player, and stay fixed on reload.');
+
+for (const count of [1, 2, 3]) {
+    for (const firstColor of ['green', 'yellow', 'red']) {
+        const turns = game();
+        turns.elements.get('.menu-normal-button').events.click();
+        turns.elements.get('.player-count-slider').value = String(count);
+        turns.elements.get('.player-count-slider').events.input();
+        turns.elements.get(`.choose-${firstColor}`).events.click();
+        turns.elements.get('.choose-seed-birch').events.click();
+        turns.elements.get('.setup-done-button').events.click();
+        const order = ['green', 'yellow', 'red'].filter(color => turns.run('activeBoardColors').includes(color));
+        for (let turn = 0; turn < count * 2; turn++) {
+            const color = turns.run('selectedColor');
+            const balance = turns.run('moneyInCents');
+            const income = turns.run('getCurrentPlayerIncome()');
+            const nextColor = order[(order.indexOf(color) + 1) % order.length];
+            const otherTree = turns.run('plantedSeeds.find(seed => !canManageTree(seed))');
+            if (otherTree) {
+                turns.run('{ const other = plantedSeeds.find(seed => !canManageTree(seed)); upgradeSeed(other); compostTree(other); }');
+                assert.equal(turns.run('moneyInCents'), balance);
+                assert.equal(turns.run('plantedSeeds.length'), count);
+                assert.equal(otherTree.upgradesInStage, 0);
+            }
+            turns.elements.get('.done-button').events.click();
+            assert.equal(turns.run('selectedColor'), nextColor);
+            assert.equal(turns.run(`playerStates.find(player => player.color === "${color}").moneyInCents`), balance + income);
+            assert.equal(turns.run('selectedSeedType'), turns.run('playerStates.find(player => player.color === selectedColor).seedType'));
+            assert.equal(turns.run('moneyInCents'), turns.run('playerStates.find(player => player.color === selectedColor).moneyInCents'));
+            assert.equal(turns.elements.get(`.plant-${turns.run('selectedSeedType')}-button`).hidden, false);
+            const resumedTurn = game(turns.storage.get('tree-planting-game-save'));
+            assert.equal(resumedTurn.run('selectedColor'), nextColor);
+            assert.equal(resumedTurn.run('moneyInCents'), turns.run('moneyInCents'));
+            assert.equal(JSON.stringify(resumedTurn.run('playerStates')), JSON.stringify(turns.run('playerStates')));
+        }
+        turns.run('while (plantedSeeds.some(canManageTree)) compostTree(plantedSeeds.find(canManageTree))');
+        assert.equal(turns.run('getCurrentPlayerIncome()'), 0);
+        assert.equal(turns.elements.get('.done-button').disabled, false);
+        const emptyColor = turns.run('selectedColor');
+        turns.elements.get('.done-button').events.click();
+        assert.equal(turns.run('selectedColor'), order[(order.indexOf(emptyColor) + 1) % order.length]);
+    }
+}
+const ownedExpansion = game();
+ownedExpansion.elements.get('.menu-normal-button').events.click();
+ownedExpansion.elements.get('.choose-green').events.click();
+ownedExpansion.elements.get('.choose-seed-maple').events.click();
+ownedExpansion.elements.get('.setup-done-button').events.click();
+ownedExpansion.elements.get('.buy-tile-button').events.click();
+assert.equal(ownedExpansion.run('purchasedTileCoordinates[0].color'), 'green');
+ownedExpansion.elements.get('.done-button').events.click();
+assert.equal(ownedExpansion.run('selectedColor'), 'yellow');
+assert.equal(ownedExpansion.run('getBoardTileColor(purchasedTileCoordinates[0].q, purchasedTileCoordinates[0].r)'), 'green');
+assert.equal(ownedExpansion.run('getPlantableTiles().some(tile => tile.q === purchasedTileCoordinates[0].q && tile.r === purchasedTileCoordinates[0].r)'), false);
+const expansionResume = game(ownedExpansion.storage.get('tree-planting-game-save'));
+assert.equal(expansionResume.run('getBoardTileColor(purchasedTileCoordinates[0].q, purchasedTileCoordinates[0].r)'), 'green');
+console.log('Done rotates clockwise for every player count, preserves independent balances and seeds, blocks other-player tree actions, allows empty turns, and saves purchased-tile ownership.');

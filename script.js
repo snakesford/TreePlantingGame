@@ -95,6 +95,7 @@ let pendingSeedType = null;
 let selectedSeedType = null;
 let pendingColor = null;
 let selectedColor = null;
+let playerStates = [];
 
 function updatePlayerCount() {
     const value = Number(playerCountSlider.value);
@@ -281,6 +282,7 @@ function saveGame() {
     updateTutorialUpgradePrompt();
     if (!gameStarted) return;
 
+    syncCurrentPlayer();
     const saveData = {
         version: saveVersion,
         tutorialCompleted,
@@ -288,6 +290,7 @@ function saveGame() {
         selectedSeedType,
         normalMode,
         activeBoardColors,
+        playerStates,
         currentLevel,
         boardTileCount: startingTileCount,
         boardLayoutVersion,
@@ -296,7 +299,7 @@ function saveGame() {
         completedLevels: Array.from(completedLevels),
         matureTreesComposted,
         moneyInCents,
-        additionalTiles: purchasedTileCoordinates.map(({ q, r }) => ({ q, r })),
+        additionalTiles: purchasedTileCoordinates.map(({ q, r, color }) => ({ q, r, color })),
         obstacles: Array.from(tileObstacles.values()).map(({ q, r, key }) => ({
             q,
             r,
@@ -409,6 +412,15 @@ function isValidSaveData(data) {
         return false;
     }
 
+    if (data.playerStates !== undefined && (!Array.isArray(data.playerStates) ||
+        data.playerStates.length > 3 ||
+        new Set(data.playerStates.map(player => player?.color)).size !== data.playerStates.length ||
+        data.playerStates.some(player => !player || !["green", "yellow", "red"].includes(player.color) ||
+            !["maple", "birch", "spruce", "oak"].includes(player.seedType) ||
+            !Number.isFinite(player.moneyInCents) || player.moneyInCents < 0) ||
+        (data.playerStates.length > 0 && (!(data.activeBoardColors ?? [data.selectedColor]).every(color => data.playerStates.some(player => player.color === color)) ||
+            !data.playerStates.some(player => player.color === data.selectedColor))))) return false;
+
     const obstacleTypes = new Set(
         tileObstacleDefinitions.map((obstacle) => obstacle.key)
     );
@@ -421,7 +433,8 @@ function isValidSaveData(data) {
         if (
             !tile ||
             !Number.isInteger(tile.q) ||
-            !Number.isInteger(tile.r)
+            !Number.isInteger(tile.r) ||
+            (tile.color !== undefined && !["red", "green", "yellow"].includes(tile.color))
         ) {
             return false;
         }
@@ -572,8 +585,12 @@ function updateMoneyDisplay() {
     plantSpruceButton.disabled = cannotPlantSeed;
     plantOakButton.disabled = moneyInCents < oakSeedCostInCents || noPlantableTiles;
     buyTileButton.disabled = moneyInCents < tileCostInCents;
-    const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
-    doneButton.disabled = !gameStarted || income === 0;
+    const income = getCurrentPlayerIncome();
+    doneButton.disabled = !gameStarted || (!normalMode && income === 0);
+    const turnIndicator = document.querySelector(".turn-indicator");
+    turnIndicator.hidden = !normalMode || !selectedColor;
+    turnIndicator.textContent = selectedColor ? `${selectedColor[0].toUpperCase() + selectedColor.slice(1)}’s turn` : "";
+    turnIndicator.setAttribute("data-color", selectedColor ?? "");
     payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
     doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
 }
@@ -852,7 +869,7 @@ function restoreSavedTileObstacles(obstacles = []) {
     });
 }
 
-function addBoardTile(q, r, isPurchased = false) {
+function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor) {
     const key = getTileKey(q, r);
     if (boardTileKeys.has(key)) return false;
 
@@ -868,7 +885,7 @@ function addBoardTile(q, r, isPurchased = false) {
     tile.setAttribute("points", points);
     const tileBody = document.createElementNS(svgNamespace, "g");
     tileBody.setAttribute("class", "tile-body");
-    const color = getBoardTileColor(q, r);
+    const color = isPurchased && normalMode ? purchasedColor ?? "green" : getBoardTileColor(q, r);
     tileBody.setAttribute("data-color", color);
     tileBody.setAttribute("data-points", points);
     tileBody.addEventListener("pointerdown", (event) => pressTile(key, event, tileBody));
@@ -923,7 +940,7 @@ function addBoardTile(q, r, isPurchased = false) {
     boardTileCoordinates.push({ q, r });
     boardTileKeys.add(key);
     if (isPurchased) {
-        purchasedTileCoordinates.push({ q, r });
+        purchasedTileCoordinates.push({ q, r, ...(normalMode && purchasedColor ? { color: purchasedColor } : {}) });
         updateBoardViewBox();
     }
     return true;
@@ -995,6 +1012,7 @@ function getCompostReward(seedState) {
 }
 
 function compostTree(seedState) {
+    if (!canManageTree(seedState)) return;
     const index = plantedSeeds.indexOf(seedState);
     if (index < 0) return;
 
@@ -1092,6 +1110,7 @@ function openSeedDialog(seedState, event) {
 }
 
 function upgradeSeed(seedState) {
+    if (!canManageTree(seedState)) return;
     const upgradeCostInCents = getSeedUpgradeCost(seedState);
     if (
         seedState.stageIndex >= maximumGrowthStage ||
@@ -1127,12 +1146,55 @@ function closeSeedDialog(seedState) {
     selectedSeed = null;
 }
 
+function canManageTree(seed) {
+    return !normalMode || getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor;
+}
+
+function getCurrentPlayerIncome() {
+    return plantedSeeds.filter(canManageTree).reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
+}
+
+function syncCurrentPlayer() {
+    if (!normalMode) return;
+    const player = playerStates.find(player => player.color === selectedColor);
+    if (player) {
+        player.moneyInCents = moneyInCents;
+        player.seedType = selectedSeedType;
+    }
+}
+
+function initializePlayers() {
+    if (!normalMode || !selectedColor || !selectedSeedType) return;
+    const colors = activeBoardColors ?? [selectedColor];
+    playerStates = ["green", "yellow", "red"].filter(color => colors.includes(color)).map(color => ({
+        color,
+        seedType: color === selectedColor ? selectedSeedType :
+            plantedSeeds.find(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === color)?.treeType ?? "maple",
+        moneyInCents: color === selectedColor ? moneyInCents : 1000,
+    }));
+}
+
 function collectPayout() {
     if (!gameStarted) return;
-    const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
-    if (income === 0) return;
+    const income = getCurrentPlayerIncome();
+    if (!normalMode && income === 0) return;
     moneyInCents += income;
     payoutStatus.textContent = `Collected ${(income / 100).toFixed(2)} leaves.`;
+    if (normalMode) {
+        if (playerStates.length === 0) initializePlayers();
+        syncCurrentPlayer();
+        const clockwiseColors = ["green", "yellow", "red"].filter(color => playerStates.some(player => player.color === color));
+        const nextColor = clockwiseColors[(clockwiseColors.indexOf(selectedColor) + 1) % clockwiseColors.length];
+        const nextPlayer = playerStates.find(player => player.color === nextColor);
+        if (nextPlayer) {
+            closeSeedDialog(selectedSeed);
+            closeObstacleDialog(selectedObstacle);
+            selectedColor = nextPlayer.color;
+            selectedSeedType = nextPlayer.seedType;
+            moneyInCents = nextPlayer.moneyInCents;
+            payoutStatus.textContent += ` ${selectedColor[0].toUpperCase() + selectedColor.slice(1)}’s turn.`;
+        }
+    }
     updateMoneyDisplay();
     saveGame();
 }
@@ -1176,6 +1238,7 @@ function continueGame() {
     if (!savedGameData || !isValidSaveData(savedGameData)) return;
 
     normalMode = savedGameData.normalMode ?? getSavedStartingTileCount(savedGameData) !== 1;
+    playerStates = (savedGameData.playerStates ?? []).map(player => ({ ...player }));
     selectedSeedType = savedGameData.selectedSeedType ?? null;
     selectedColor = savedGameData.selectedColor ?? null;
     activeBoardColors = savedGameData.activeBoardColors ?? null;
@@ -1193,11 +1256,12 @@ function continueGame() {
     completedLevels.clear();
     for (let level = 1; level < currentLevel; level += 1) completedLevels.add(level);
     (savedGameData.completedLevels ?? []).forEach((level) => completedLevels.add(level));
-    (savedGameData.additionalTiles ?? []).forEach(({ q, r }) => {
-        addBoardTile(q, r, true);
+    (savedGameData.additionalTiles ?? []).forEach(({ q, r, color }) => {
+        addBoardTile(q, r, true, color ?? selectedColor);
     });
     restoreSavedTileObstacles(savedGameData.obstacles ?? []);
     savedGameData.seeds.forEach(addPlantedSeed);
+    if (playerStates.length === 0) initializePlayers();
     updateMoneyDisplay();
     if (normalMode && (!selectedColor || !selectedSeedType)) {
         openPlayerSetup(true);
@@ -1221,6 +1285,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     }
 
     savedGameData = null;
+    playerStates = [];
     normalMode = !withTutorial && !withLevels;
     selectedSeedType = normalMode ? seedType : null;
     if (tutorialWelcomeDialog.open) tutorialWelcomeDialog.close();
@@ -1233,7 +1298,10 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     startingTileCount = withTutorial ? 1 : withLevels ? 7 : 1 + 7 * activeBoardColors.length;
     boardLayoutVersion = 2;
     resetBoard();
-    if (normalMode) plantStartingSprouts();
+    if (normalMode) {
+        plantStartingSprouts();
+        initializePlayers();
+    }
     levelOneCompleted = false;
     levelTwoCompleted = false;
     matureTreesComposted = 0;
@@ -1327,6 +1395,7 @@ setupDoneButton.addEventListener("click", () => {
     if (choosingColorForContinue) {
         selectedColor = pendingColor;
         selectedSeedType = pendingSeedType;
+        if (playerStates.length === 0) initializePlayers();
         tileElements.forEach((tile, key) => {
             const [q, r] = key.split(",").map(Number);
             tile.setAttribute("data-color", getBoardTileColor(q, r));
@@ -1411,6 +1480,8 @@ function getNormalBoardCoordinates(colors = activeBoardColors) {
 }
 
 function getBoardTileColor(q, r) {
+    const purchased = purchasedTileCoordinates.find(tile => tile.q === q && tile.r === r);
+    if (purchased?.color) return purchased.color;
     if (!activeBoardColors && startingTileCount !== 22) return selectedColor ?? "green";
     return getNormalBoardCoordinates().find(tile => tile.q === q && tile.r === r)?.color ?? selectedColor ?? "green";
 }

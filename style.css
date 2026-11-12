@@ -803,3 +803,8 @@ main {
     .top-bar { padding-left: 60px; }
     .money-counter { min-width: 0; padding: 12px; }
 }
+
+.turn-indicator { font-weight: 700; }
+.turn-indicator[data-color="green"] { color: #32663c; }
+.turn-indicator[data-color="yellow"] { color: #806000; }
+.turn-indicator[data-color="red"] { color: #a13930; }
