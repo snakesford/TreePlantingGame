@@ -737,6 +737,23 @@ function addBoardTile(q, r, isPurchased = false) {
     tileBody.setAttribute("data-points", points);
     tileBody.addEventListener("pointerdown", (event) => pressTile(key, event, tileBody));
     tileBody.addEventListener("lostpointercapture", releasePressedTreeTile);
+    const getPlantedSeed = () => plantedSeeds.find((seed) => seed.tile.q === q && seed.tile.r === r);
+    tileBody.addEventListener("mouseenter", (event) => {
+        const seed = getPlantedSeed();
+        if (seed) openSeedDialog(seed, event);
+    });
+    tileBody.addEventListener("mousemove", (event) => {
+        const seed = getPlantedSeed();
+        if (seed && selectedSeed === seed) positionHoverDialog(seedDialog, seed.image, event);
+    });
+    tileBody.addEventListener("mouseleave", () => {
+        const seed = getPlantedSeed();
+        if (seed) closeSeedDialog(seed);
+    });
+    tileBody.addEventListener("click", () => {
+        const seed = getPlantedSeed();
+        if (seed) upgradeSeed(seed);
+    });
     tileElements.set(key, tileBody);
     tileBody.append(tile);
 
