@@ -583,7 +583,10 @@ function updateMoneyDisplay() {
             button.hidden = type !== selectedSeedType;
         }
     }
-    moneyAmount.textContent = (moneyInCents / 100).toString();
+    const displayedBalance = isBotTurn()
+        ? playerStates.find(player => player.color === humanColor)?.moneyInCents ?? 0
+        : moneyInCents;
+    moneyAmount.textContent = (displayedBalance / 100).toString();
     const noPlantableTiles = getPlantableTiles().length === 0;
     const cannotPlantSeed = moneyInCents < seedCostInCents || noPlantableTiles;
     plantMapleButton.disabled = cannotPlantSeed;
