@@ -18,9 +18,10 @@ body {
 }
 
 .top-bar {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     width: min(100% - 40px, 720px);
     margin-top: max(20px, env(safe-area-inset-top));
@@ -726,7 +727,12 @@ main {
 .player-count-ticks { grid-column: 1 / -1; display: flex; justify-content: space-between; padding: 0 6px; }
 .player-count-slider:focus-visible { outline: 3px solid #65b947; outline-offset: 4px; }
 
-.game-menu { position: relative; flex: 0 0 100%; z-index: 10; }
+.game-menu {
+    position: absolute;
+    top: 0;
+    left: calc(50% - 50vw + max(16px, env(safe-area-inset-left, 0px)));
+    z-index: 10;
+}
 .menu-toggle {
     display: flex;
     flex-direction: column;
@@ -791,4 +797,9 @@ main {
     .setup-layout { grid-template-columns: minmax(0, 1fr) 80px; gap: 14px; }
     .setup-preview { width: 80px; height: 80px; }
     .color-dialog .setup-colors { flex-direction: column; }
+}
+
+@media (max-width: 880px) {
+    .top-bar { padding-left: 60px; }
+    .money-counter { min-width: 0; padding: 12px; }
 }
