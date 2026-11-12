@@ -29,6 +29,7 @@ const levelProgress = document.querySelector(".level-progress");
 const levelLabel = document.querySelector(".level-label");
 const nextLevelButton = document.querySelector(".next-level-button");
 let currentLevel = 1;
+let normalMode = true;
 let levelOneCompleted = false;
 let levelTwoCompleted = false;
 const completedLevels = new Set();
@@ -53,7 +54,6 @@ const continueGameButton = document.querySelector(".continue-game-button");
 const newGameButton = document.querySelector(".new-game-button");
 const tutorialButton = document.querySelector(".tutorial-button");
 const colorDialog = document.querySelector(".color-dialog");
-const playerColorLabel = document.querySelector(".player-color-label");
 let selectedColor = null;
 let choosingColorForContinue = false;
 const tutorialWelcomeDialog = document.querySelector(".tutorial-welcome-dialog");
@@ -235,6 +235,7 @@ function saveGame() {
         version: saveVersion,
         tutorialCompleted,
         selectedColor,
+        normalMode,
         currentLevel,
         boardTileCount: startingTileCount,
         boardLayoutVersion,
@@ -327,6 +328,7 @@ function isValidSaveData(data) {
         !data ||
         typeof data !== "object" ||
         ![1, 2, 3, 4, saveVersion].includes(data.version) ||
+        (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
         (data.selectedColor != null && !["red", "green", "yellow"].includes(data.selectedColor)) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
         (data.boardLayoutVersion !== undefined && ![1, 2].includes(data.boardLayoutVersion)) ||
@@ -499,8 +501,6 @@ function updateMoneyDisplay() {
         button.hidden = tutorialActive;
     });
     moneyAmount.textContent = (moneyInCents / 100).toString();
-    playerColorLabel.hidden = !selectedColor;
-    playerColorLabel.textContent = selectedColor ? `Your color: ${selectedColor}` : "";
     const noPlantableTiles = getPlantableTiles().length === 0;
     const cannotPlantSeed = moneyInCents < seedCostInCents || noPlantableTiles;
     plantMapleButton.disabled = cannotPlantSeed;
@@ -527,7 +527,17 @@ const levelDefinitions = [
 
 function updateLevelProgress() {
     const tutorialActive = startingTileCount === 1;
-    document.querySelector(".level-indicator").hidden = tutorialActive;
+    document.querySelector(".level-row").hidden = normalMode || tutorialActive;
+    document.querySelector(".level-indicator").hidden = normalMode || tutorialActive;
+    if (normalMode) {
+        document.querySelector(".level-details").hidden = true;
+        nextLevelButton.hidden = true;
+        levelNotification.hidden = true;
+        levelNotification.textContent = "";
+        levelObjective.textContent = "";
+        levelProgressText.textContent = "";
+        return;
+    }
     document.querySelector(".level-details").hidden = tutorialActive;
     const definition = levelDefinitions[currentLevel - 1];
     const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
@@ -574,6 +584,7 @@ function updateLevelProgress() {
 }
 
 function isCurrentLevelComplete() {
+    if (normalMode) return false;
     return completedLevels.has(currentLevel) ||
         (currentLevel === 1 && levelOneCompleted) ||
         (currentLevel === 2 && levelTwoCompleted);
@@ -667,7 +678,7 @@ function closeObstacleDialog(key) {
 }
 
 function addTileObstacle(q, r, obstacleType = null) {
-    if (currentLevel === 1) return false;
+    if (normalMode || currentLevel === 1) return false;
     const key = getTileKey(q, r);
     if (tileObstacles.has(key)) return false;
 
@@ -749,7 +760,7 @@ function clearTileObstacle(q, r) {
 }
 
 function spawnRandomTileObstacles() {
-    if (currentLevel === 1) return;
+    if (normalMode || currentLevel === 1) return;
     if (currentLevel === 2) {
         if (tileObstacles.size > 0 || availableTiles.length === 0) return;
         const { q, r } = availableTiles[Math.floor(Math.random() * availableTiles.length)];
@@ -923,7 +934,7 @@ function compostTree(seedState) {
     const index = plantedSeeds.indexOf(seedState);
     if (index < 0) return;
 
-    if (currentLevel === 8 && seedState.stageIndex === maximumGrowthStage) {
+    if (!normalMode && currentLevel === 8 && seedState.stageIndex === maximumGrowthStage) {
         matureTreesComposted += 1;
     }
     const reward = getCompostReward(seedState);
@@ -1099,6 +1110,7 @@ document.querySelector(".tutorial-done-next").addEventListener("click", () => {
 function continueGame() {
     if (!savedGameData || !isValidSaveData(savedGameData)) return;
 
+    normalMode = savedGameData.normalMode ?? getSavedStartingTileCount(savedGameData) !== 1;
     selectedColor = savedGameData.selectedColor ?? null;
     moneyInCents = savedGameData.moneyInCents;
     tutorialCompleted = savedGameData.tutorialCompleted === true;
@@ -1148,6 +1160,7 @@ function startNewGame(withTutorial = false, color = null) {
     }
 
     savedGameData = null;
+    normalMode = !withTutorial;
     selectedColor = withTutorial ? null : color;
     tutorialCompleted = false;
     currentLevel = 1;
@@ -1232,7 +1245,7 @@ buyTileButton.addEventListener("click", () => {
 
     const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
     addBoardTile(q, r, true);
-    if (currentLevel > 2 && Math.random() < tileObstacleChance) {
+    if (!normalMode && currentLevel > 2 && Math.random() < tileObstacleChance) {
         addTileObstacle(q, r);
     }
     moneyInCents -= tileCostInCents;

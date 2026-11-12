@@ -54,7 +54,7 @@ function game(saved = null) {
     vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, '../script.js'), 'utf8'), context);
     elements.get('.hex-tiles').ownerSVGElement = new Element();
     // Fund upgrade and campaign fixtures independently of the game's starting balance.
-    vm.runInContext('moneyInCents = 9999999; selectedColor = "green"', context);
+    vm.runInContext('moneyInCents = 9999999; selectedColor = "green"; normalMode = false', context);
     return { run: code => vm.runInContext(code, context), elements, storage };
 }
 
@@ -142,8 +142,8 @@ assert.equal(skippedTutorial.elements.get('.color-dialog').open, true);
 skippedTutorial.elements.get('.choose-green').events.click();
 assert.equal(skippedTutorial.run('boardTileCoordinates.length'), 22);
 assert.equal(skippedTutorial.run('plantedSeeds.length'), 0);
-assert.equal(skippedTutorial.elements.get('.level-indicator').hidden, false);
-assert.equal(skippedTutorial.elements.get('.level-details').hidden, false);
+assert.equal(skippedTutorial.elements.get('.level-indicator').hidden, true);
+assert.equal(skippedTutorial.elements.get('.level-details').hidden, true);
 assert.equal(skippedTutorial.elements.get('.plant-birch-button').hidden, false);
 const refreshedModeMenu = game(tutorialSave);
 assert.equal(refreshedModeMenu.elements.get('.save-slot-dialog').open, true);
@@ -857,3 +857,24 @@ assert.equal(oldColorGame.run('gameStarted'), true);
 assert.equal(oldColorGame.run('selectedColor'), 'red');
 assert.equal(JSON.parse(oldColorGame.storage.get('tree-planting-game-save')).selectedColor, 'red');
 console.log('Unselected boards prevent planting and existing normal saves request and persist a color.');
+
+const freePlay = game();
+freePlay.elements.get('.new-game-button').events.click();
+freePlay.elements.get('.choose-yellow').events.click();
+freePlay.run('for (let i = 0; i < 7; i++) plantSeed()');
+assert.equal(freePlay.elements.get('.level-row').hidden, true);
+assert.equal(freePlay.elements.get('.level-details').hidden, true);
+assert.equal(freePlay.elements.get('.next-level-button').hidden, true);
+assert.equal(freePlay.elements.get('.level-notification').hidden, true);
+assert.equal(freePlay.run('completedLevels.size'), 0);
+freePlay.elements.get('.next-level-button').events.click();
+assert.equal(freePlay.run('plantedSeeds.length'), 7);
+assert.equal(freePlay.run('boardTileCoordinates.length'), 22);
+const freePlayResume = game(freePlay.storage.get('tree-planting-game-save'));
+freePlayResume.run('continueGame()');
+assert.equal(freePlayResume.run('normalMode'), true);
+assert.equal(freePlayResume.elements.get('.level-row').hidden, true);
+const freeBalance = freePlayResume.run('moneyInCents');
+freePlayResume.elements.get('.done-button').events.click();
+assert.equal(freePlayResume.run('moneyInCents'), freeBalance + 280);
+console.log('Normal mode hides and disables levels, retains its board, saves mode, and continues payouts.');

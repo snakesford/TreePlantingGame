@@ -451,6 +451,7 @@ main {
     object-fit: contain;
 }
 
+.level-row[hidden],
 .level-indicator[hidden],
 .level-details[hidden],
 .game-actions button[hidden] {
@@ -707,4 +708,3 @@ main {
 .save-slot-actions .choose-red { background: #e8786d; color: #421b18; }
 .save-slot-actions .choose-green { background: #69a373; color: #102d16; }
 .save-slot-actions .choose-yellow { background: #f2cf65; color: #40330d; }
-.player-color-label { font-weight: 700; text-transform: capitalize; }
