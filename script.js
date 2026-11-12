@@ -55,6 +55,7 @@ const continueGameButton = document.querySelector(".continue-game-button");
 const newGameButton = document.querySelector(".new-game-button");
 const tutorialButton = document.querySelector(".tutorial-button");
 const tutorialWelcomeDialog = document.querySelector(".tutorial-welcome-dialog");
+const tutorialCompleteDialog = document.querySelector(".tutorial-complete-dialog");
 let tutorialPromptReady = false;
 let tutorialUpgradeSeed = null;
 let tutorialUpgradeReady = false;
@@ -954,6 +955,7 @@ function compostTree(seedState) {
         if (highlightVersion !== compostHighlightVersion) return;
         bank.setAttribute("data-compost-highlight", "false");
         rewardMessage.hidden = true;
+        if (startingTileCount === 1 && tutorialCompleted) tutorialCompleteDialog.showModal();
     }, 3500);
     if (startingTileCount === 1 && seedState.stageIndex >= 2) tutorialCompleted = true;
     closeSeedDialog(seedState);
@@ -1133,6 +1135,7 @@ function startGame() {
         window.setInterval(saveGame, 1000);
     }
     saveSlotDialog.close();
+    if (startingTileCount === 1 && tutorialCompleted) tutorialCompleteDialog.showModal();
     if (startingTileCount === 1 && !tutorialCompleted && plantedSeeds.length === 0) {
         tutorialPromptReady = false;
         updateMoneyDisplay();
@@ -1140,6 +1143,24 @@ function startGame() {
     }
     saveGame();
 }
+
+document.querySelector(".tutorial-complete-next").addEventListener("click", () => {
+    tutorialCompleteDialog.close();
+});
+tutorialCompleteDialog.addEventListener("close", () => {
+    if (startingTileCount !== 1 || !tutorialCompleted) return;
+    currentLevel = 1;
+    startingTileCount = levelTileCounts[0];
+    boardLayoutVersion = 2;
+    levelOneCompleted = false;
+    levelTwoCompleted = false;
+    matureTreesComposted = 0;
+    completedLevels.clear();
+    resetBoard();
+    spawnRandomTileObstacles();
+    updateMoneyDisplay();
+    saveGame();
+});
 
 document.querySelector(".tutorial-welcome-dismiss").addEventListener("click", () => {
     tutorialWelcomeDialog.close();

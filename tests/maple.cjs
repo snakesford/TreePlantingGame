@@ -134,6 +134,16 @@ const completedTutorial = game(resumedTutorial.storage.get('tree-planting-game-s
 completedTutorial.run('continueGame()');
 assert.equal(completedTutorial.run('tutorialCompleted'), true);
 assert.equal(completedTutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
+assert.equal(completedTutorial.elements.get('.tutorial-complete-dialog').open, true);
+assert.equal(resumedTutorial.elements.get('.tutorial-complete-dialog').open, true);
+completedTutorial.elements.get('.tutorial-complete-next').events.click();
+completedTutorial.elements.get('.tutorial-complete-dialog').events.close();
+assert.equal(completedTutorial.run('currentLevel'), 1);
+assert.equal(completedTutorial.run('boardTileCoordinates.length'), 7);
+assert.equal(completedTutorial.run('plantedSeeds.length'), 0);
+assert.equal(completedTutorial.elements.get('.level-indicator').hidden, false);
+assert.equal(completedTutorial.elements.get('.plant-birch-button').hidden, false);
+assert.equal(JSON.parse(completedTutorial.storage.get('tree-planting-game-save')).boardTileCount, 7);
 const skippedTutorial = game();
 skippedTutorial.elements.get('.new-game-button').events.click({ type: 'click' });
 assert.equal(skippedTutorial.run('boardTileCoordinates.length'), 7);
