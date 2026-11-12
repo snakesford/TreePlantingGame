@@ -1139,6 +1139,7 @@ document.querySelector(".tutorial-welcome-dismiss").addEventListener("click", ()
 });
 tutorialWelcomeDialog.addEventListener("close", () => {
     window.setTimeout(() => {
+        if (normalMode || tutorialCompleted) return;
         document.querySelector(".tutorial-done-prompt").hidden = false;
         payoutControls.setAttribute("data-tutorial-focus", "true");
         document.querySelector(".tutorial-done-next").focus();
@@ -1215,6 +1216,9 @@ function startNewGame(withTutorial = false, color = null) {
 
     savedGameData = null;
     normalMode = !withTutorial;
+    if (tutorialWelcomeDialog.open) tutorialWelcomeDialog.close();
+    document.querySelector(".tutorial-done-prompt").hidden = true;
+    payoutControls.setAttribute("data-tutorial-focus", "false");
     selectedColor = withTutorial ? null : color;
     activeBoardColors = withTutorial ? null : [color, ...["green", "yellow", "red"].filter(other => other !== color)].slice(0, playerCount);
     tutorialCompleted = false;
@@ -1368,4 +1372,8 @@ function createStartingBoard() {
 createStartingBoard();
 updateLevelProgress();
 readSavedGame();
-saveSlotDialog.showModal();
+if (savedGameData) {
+    continueGame();
+} else {
+    setGameMenuOpen(true);
+}

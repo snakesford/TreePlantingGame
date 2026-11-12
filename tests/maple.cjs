@@ -32,6 +32,9 @@ class Element {
 function game(saved = null) {
     const elements = new Map();
     const storage = new Map(saved ? [['tree-planting-game-save', saved]] : []);
+    const tileContainer = new Element();
+    tileContainer.ownerSVGElement = new Element();
+    elements.set(".hex-tiles", tileContainer);
     const context = vm.createContext({
         document: {
             querySelector(selector) {
@@ -54,13 +57,13 @@ function game(saved = null) {
     vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, '../script.js'), 'utf8'), context);
     elements.get('.hex-tiles').ownerSVGElement = new Element();
     // Fund upgrade and campaign fixtures independently of the game's starting balance.
-    vm.runInContext('moneyInCents = 9999999; selectedColor = "green"; normalMode = false', context);
+    if (!saved) vm.runInContext('moneyInCents = 9999999; selectedColor = "green"; normalMode = false', context);
     return { run: code => vm.runInContext(code, context), elements, storage };
 }
 
 const g = game();
 const tutorial = game();
-assert.equal(tutorial.elements.get('.save-slot-dialog').open, true);
+assert.notEqual(tutorial.elements.get('.save-slot-dialog').open, true);
 tutorial.elements.get('.tutorial-button').events.click();
 assert.equal(tutorial.elements.get('.save-slot-dialog').open, false);
 assert.equal(tutorial.run('gameStarted'), true);
@@ -146,7 +149,7 @@ assert.equal(skippedTutorial.elements.get('.level-indicator').hidden, true);
 assert.equal(skippedTutorial.elements.get('.level-details').hidden, true);
 assert.equal(skippedTutorial.elements.get('.plant-birch-button').hidden, false);
 const refreshedModeMenu = game(tutorialSave);
-assert.equal(refreshedModeMenu.elements.get('.save-slot-dialog').open, true);
+assert.notEqual(refreshedModeMenu.elements.get('.save-slot-dialog').open, true);
 refreshedModeMenu.run('window.confirm = () => true');
 refreshedModeMenu.elements.get('.new-game-button').events.click();
 refreshedModeMenu.elements.get('.choose-green').events.click();
@@ -911,3 +914,13 @@ for (const count of [1, 2, 3]) {
     }
 }
 console.log('Player slider builds and saves all nine player-count/color combinations, with one blue center and seven tiles per active color.');
+
+const refreshWithoutSave = game();
+assert.notEqual(refreshWithoutSave.elements.get('.save-slot-dialog').open, true);
+assert.equal(refreshWithoutSave.elements.get('.game-menu-panel').hidden, false);
+const refreshWithSave = game(freePlay.storage.get('tree-planting-game-save'));
+assert.notEqual(refreshWithSave.elements.get('.save-slot-dialog').open, true);
+assert.equal(refreshWithSave.run('gameStarted'), true);
+assert.equal(refreshWithSave.run('plantedSeeds.length'), 7);
+assert.equal(refreshWithSave.run('selectedColor'), 'yellow');
+console.log('Refresh resumes saved games without a save-slot popup and opens the mode menu for new players.');
