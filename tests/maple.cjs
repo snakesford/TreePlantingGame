@@ -138,11 +138,25 @@ assert.equal(completedTutorial.run('tutorialCompleted'), true);
 assert.equal(completedTutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
 const skippedTutorial = game();
 skippedTutorial.elements.get('.new-game-button').events.click({ type: 'click' });
-assert.equal(skippedTutorial.run('boardTileCoordinates.length'), 7);
+assert.equal(skippedTutorial.run('boardTileCoordinates.length'), 22);
 assert.equal(skippedTutorial.run('plantedSeeds.length'), 0);
 assert.equal(skippedTutorial.elements.get('.level-indicator').hidden, false);
 assert.equal(skippedTutorial.elements.get('.level-details').hidden, false);
 assert.equal(skippedTutorial.elements.get('.plant-birch-button').hidden, false);
+const refreshedModeMenu = game(tutorialSave);
+assert.equal(refreshedModeMenu.elements.get('.save-slot-dialog').open, true);
+refreshedModeMenu.run('window.confirm = () => true');
+refreshedModeMenu.elements.get('.new-game-button').events.click();
+assert.equal(refreshedModeMenu.elements.get('.save-slot-dialog').open, false);
+assert.equal(refreshedModeMenu.run('boardTileCoordinates.length'), 22);
+assert.equal(refreshedModeMenu.run('boardTileKeys.has("0,0")'), true);
+for (const color of ['green', 'yellow', 'red', 'blue']) {
+    assert.equal(refreshedModeMenu.run(`Array.from(tileElements.values()).filter(tile => tile.getAttribute("data-color") === "${color}").length`), color === 'blue' ? 1 : 7);
+}
+assert.equal(refreshedModeMenu.run('tileElements.get("0,0").getAttribute("data-color")'), 'blue');
+assert.equal(refreshedModeMenu.run('availableTiles.length'), 22);
+assert.equal(refreshedModeMenu.run('currentLevel'), 1);
+assert.equal(refreshedModeMenu.run('tutorialWelcomeDialog.open === true'), false);
 console.log('Tutorial empty tile, maple-only planting controls, save/continue, and normal new game passed.');
 g.elements.get('.plant-maple-button').events.click();
 assert.equal(g.run('plantedSeeds[0].treeType'), 'maple');
@@ -420,7 +434,7 @@ assert.ok(!fs.readFileSync(require('node:path').join(__dirname, '../index.html')
 console.log('Base seed purchase removed; default planting uses maple.');
 
 const levels = game();
-assert.equal(levels.run('boardTileCoordinates.length'), 7);
+assert.equal(levels.run('boardTileCoordinates.length'), 22);
 levels.run('startGame()');
 assert.equal(levels.elements.get('.next-level-button').hidden, true);
 levels.elements.get('.next-level-button').events.click();
@@ -437,7 +451,7 @@ unlocked.run('continueGame()');
 assert.equal(unlocked.elements.get('.next-level-button').hidden, false);
 levels.run('plantSeed(); openSeedDialog(plantedSeeds[0])');
 levels.elements.get('.buy-tile-button').events.click();
-assert.equal(levels.run('boardTileCoordinates.length'), 8);
+assert.equal(levels.run('boardTileCoordinates.length'), 23);
 const levelBalance = levels.run('moneyInCents');
 levels.elements.get('.next-level-button').events.click();
 assert.equal(levels.run('currentLevel'), 2);
@@ -478,16 +492,16 @@ console.log('Level thresholds, purchased growth, persistent unlock, board reset,
 const obstacleFree = game();
 obstacleFree.run('startGame(); Math.random = () => 0; spawnRandomTileObstacles()');
 assert.equal(obstacleFree.run('tileObstacles.size'), 0);
-assert.equal(obstacleFree.run('availableTiles.length'), 7);
+assert.equal(obstacleFree.run('availableTiles.length'), 22);
 obstacleFree.elements.get('.buy-tile-button').events.click();
 assert.equal(obstacleFree.run('tileObstacles.size'), 0);
-assert.equal(obstacleFree.run('availableTiles.length'), 8);
+assert.equal(obstacleFree.run('availableTiles.length'), 23);
 const obstructedSave = JSON.parse(obstacleFree.storage.get('tree-planting-game-save'));
 obstructedSave.obstacles = [{ q: 0, r: 0, type: 'rock' }];
 const clearedSave = game(JSON.stringify(obstructedSave));
 clearedSave.run('continueGame()');
 assert.equal(clearedSave.run('tileObstacles.size'), 0);
-assert.equal(clearedSave.run('availableTiles.length'), 8);
+assert.equal(clearedSave.run('availableTiles.length'), 23);
 assert.equal(JSON.parse(clearedSave.storage.get('tree-planting-game-save')).obstacles.length, 0);
 obstacleFree.run('levelOneCompleted = true; advanceToNextLevel()');
 assert.equal(obstacleFree.run('currentLevel'), 2);
@@ -660,7 +674,7 @@ earlyCompost.run('startGame(); plantSeed(); for (let i = 0; i < 20; i++) upgrade
 assert.equal(earlyCompost.run('matureTreesComposted'), 0);
 console.log('All eight sequential objectives, compost thresholds, partial save/load, duplicate protection, and retired-stage migration passed.');
 
-for (const [index, count] of [7, 7, 12, 15, 19, 19, 27, 36].entries()) {
+for (const [index, count] of [22, 7, 12, 15, 19, 19, 27, 36].entries()) {
     const board = game();
     board.run(`currentLevel = ${index + 1}; startingTileCount = levelTileCounts[currentLevel - 1]; resetBoard(); startGame()`);
     assert.equal(board.run('boardTileCoordinates.length'), count);

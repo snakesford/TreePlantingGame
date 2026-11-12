@@ -187,7 +187,7 @@ function getUpgradesPerStage() {
 }
 const maximumGrowthStage = growthStages.length - 1;
 let gameStarted = false;
-const levelTileCounts = [7, 7, 12, 15, 19, 19, 27, 36];
+const levelTileCounts = [22, 7, 12, 15, 19, 19, 27, 36];
 let startingTileCount = levelTileCounts[0];
 let boardLayoutVersion = 2;
 const radius = 24;
@@ -324,7 +324,7 @@ function isValidSaveData(data) {
         ![1, 2, 3, 4, saveVersion].includes(data.version) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
         (data.boardLayoutVersion !== undefined && ![1, 2].includes(data.boardLayoutVersion)) ||
-        (data.boardTileCount !== undefined && ![1, 7, 12, 15, 19, 27, 36, 91].includes(data.boardTileCount)) ||
+        (data.boardTileCount !== undefined && ![1, 7, 12, 15, 19, 22, 27, 36, 91].includes(data.boardTileCount)) ||
         (data.boardSideLength !== undefined && ![2, 6].includes(data.boardSideLength)) ||
         (data.levelOneCompleted !== undefined && typeof data.levelOneCompleted !== "boolean") ||
         (data.levelTwoCompleted !== undefined && typeof data.levelTwoCompleted !== "boolean") ||
@@ -779,6 +779,8 @@ function addBoardTile(q, r, isPurchased = false) {
     tile.setAttribute("points", points);
     const tileBody = document.createElementNS(svgNamespace, "g");
     tileBody.setAttribute("class", "tile-body");
+    const color = getBoardTileColor(q, r);
+    tileBody.setAttribute("data-color", color);
     tileBody.setAttribute("data-points", points);
     tileBody.addEventListener("pointerdown", (event) => pressTile(key, event, tileBody));
     tileBody.addEventListener("lostpointercapture", releasePressedTreeTile);
@@ -808,7 +810,12 @@ function addBoardTile(q, r, isPurchased = false) {
     });
     const outerEdge = bevelPoints(tileRadius);
     const topEdge = bevelPoints(radius - 5, -1);
-    const edgeColors = ["#9ac68a", "#679b60", "#365f38", "#284c30", "#305a37", "#78a76b"];
+    const edgeColors = {
+        green: ["#9ac68a", "#679b60", "#365f38", "#284c30", "#305a37", "#78a76b"],
+        yellow: ["#ffe99b", "#e2bd50", "#a88024", "#88651e", "#a07926", "#eed070"],
+        red: ["#f7a095", "#d9675e", "#9e3f38", "#7e302e", "#963d36", "#e88276"],
+        blue: ["#9dd5f7", "#609fcf", "#356b9d", "#28547f", "#32638f", "#7ab9e2"],
+    }[color];
 
     outerEdge.forEach((point, index) => {
         const next = (index + 1) % 6;
@@ -1197,7 +1204,22 @@ function getSavedStartingTileCount(data) {
     return 1 + 3 * length * (length - 1);
 }
 
+function getNormalBoardCoordinates() {
+    const coordinates = [{ q: 0, r: 0, color: "blue" }];
+    for (const [q, r, color] of [[1, -2, "green"], [1, 1, "yellow"], [-2, 1, "red"]]) {
+        coordinates.push({ q, r, color });
+        tileNeighborOffsets.forEach(([dq, dr]) => coordinates.push({ q: q + dq, r: r + dr, color }));
+    }
+    return coordinates;
+}
+
+function getBoardTileColor(q, r) {
+    if (startingTileCount !== 22) return "green";
+    return getNormalBoardCoordinates().find(tile => tile.q === q && tile.r === r)?.color ?? "green";
+}
+
 function getStartingCoordinates(count, layoutVersion = boardLayoutVersion) {
+    if (count === 22) return getNormalBoardCoordinates().map(({ q, r }) => ({ q, r }));
     let extent = 0;
     while (1 + 3 * extent * (extent + 1) < count) extent += 1;
     const coordinates = [];

@@ -694,3 +694,10 @@ main {
     }
 
 }
+
+.tile-body[data-color="yellow"] .hex-tile { fill: #c9a33d; }
+.tile-body[data-color="yellow"] .tile-surface { fill: #f2cf65; }
+.tile-body[data-color="red"] .hex-tile { fill: #ba5048; }
+.tile-body[data-color="red"] .tile-surface { fill: #e8786d; }
+.tile-body[data-color="blue"] .hex-tile { fill: #467da9; }
+.tile-body[data-color="blue"] .tile-surface { fill: #6cafe0; }
