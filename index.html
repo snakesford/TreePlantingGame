@@ -86,19 +86,34 @@
     </div>
   </dialog>
   <dialog class="color-dialog" aria-labelledby="color-title">
-    <h1 id="color-title">Choose your color</h1>
-    <p>You can only plant on tiles of your color.</p>
+    <h1 id="color-title">Choose your color and seed</h1>
     <div class="player-count-control">
       <label for="player-count">Number of players</label>
       <output class="player-count-output" for="player-count" aria-live="polite">3 players</output>
       <input id="player-count" class="player-count-slider" type="range" min="1" max="3" step="1" value="3" />
       <div class="player-count-ticks" aria-hidden="true"><span>1</span><span>2</span><span>3</span></div>
     </div>
-    <div class="save-slot-actions">
-      <button class="choose-red" type="button">Red</button>
-      <button class="choose-green" type="button">Green</button>
-      <button class="choose-yellow" type="button">Yellow</button>
+    <div class="setup-layout">
+      <div class="setup-choices">
+        <h2>Color</h2>
+        <div class="save-slot-actions setup-colors">
+          <button class="choose-red" type="button" aria-pressed="false">Red</button>
+          <button class="choose-green" type="button" aria-pressed="false">Green</button>
+          <button class="choose-yellow" type="button" aria-pressed="false">Yellow</button>
+        </div>
+        <h2>Seed</h2>
+        <div class="save-slot-actions setup-seeds">
+          <button class="choose-seed-maple" type="button" aria-pressed="false"><img src="images/maple/seed.png" alt="" width="48" height="48" />Maple</button>
+          <button class="choose-seed-birch" type="button" aria-pressed="false"><img src="images/birch/seed.png" alt="" width="48" height="48" />Birch</button>
+          <button class="choose-seed-spruce" type="button" aria-pressed="false"><img src="images/spruce/seed.png" alt="" width="48" height="48" />Spruce</button>
+          <button class="choose-seed-oak" type="button" aria-pressed="false"><img src="images/oak/seed.png" alt="" width="48" height="48" />Oak</button>
+        </div>
+      </div>
+      <div class="setup-preview" role="img" aria-label="Choose a color and seed" data-color="none">
+        <img class="setup-preview-seed" alt="" width="96" height="96" hidden />
+      </div>
     </div>
+    <button class="setup-done-button" type="button" disabled>Done</button>
   </dialog>
   <dialog class="tutorial-welcome-dialog" aria-labelledby="tutorial-welcome-title">
     <h1 id="tutorial-welcome-title">Welcome to the tutorial!</h1>

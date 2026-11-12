@@ -769,3 +769,26 @@ main {
 }
 .game-menu-panel button:hover { background: #e4ecd9; }
 .menu-toggle:focus-visible, .game-menu-panel button:focus-visible { outline: 3px solid #65b947; outline-offset: 3px; }
+
+
+.color-dialog { width: min(94vw, 760px); }
+.setup-layout { display: grid; grid-template-columns: minmax(0, 1fr) 160px; align-items: center; gap: 28px; margin-top: 24px; }
+.setup-choices h2 { font-size: 1rem; margin: 20px 0 12px; }
+.color-dialog .setup-colors, .color-dialog .setup-seeds { margin-top: 0; gap: 10px; }
+.color-dialog .setup-colors button { min-height: 48px; padding: 10px; }
+.color-dialog .setup-seeds { display: grid; grid-template-columns: repeat(2, 1fr); }
+.color-dialog .setup-seeds button { display: grid; justify-items: center; gap: 8px; min-height: 100px; font-size: 1rem; }
+.setup-choices button[aria-pressed="true"] { outline: 3px solid #205627; outline-offset: 2px; }
+.setup-preview { width: 160px; height: 160px; border-radius: 50%; display: grid; place-items: center; background: #e4e8df; border: 3px solid rgb(0 0 0 / 12%); }
+.setup-preview[data-color="red"] { background: #e8786d; }
+.setup-preview[data-color="green"] { background: #69a373; }
+.setup-preview[data-color="yellow"] { background: #f2cf65; }
+.setup-preview-seed { width: 65%; height: 65%; object-fit: contain; }
+.setup-done-button { display: block; margin: 28px 0 0 auto; min-width: 120px; padding: 14px 24px; border: 0; border-radius: 12px; background: #327b35; color: white; font: 700 1.1rem sans-serif; cursor: pointer; }
+.setup-done-button:disabled { opacity: 0.45; cursor: default; }
+.setup-done-button:focus-visible { outline: 3px solid #65b947; outline-offset: 3px; }
+@media (max-width: 520px) {
+    .setup-layout { grid-template-columns: minmax(0, 1fr) 80px; gap: 14px; }
+    .setup-preview { width: 80px; height: 80px; }
+    .color-dialog .setup-colors { flex-direction: column; }
+}

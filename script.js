@@ -88,6 +88,12 @@ const playerCountSlider = document.querySelector(".player-count-slider");
 const playerCountOutput = document.querySelector(".player-count-output");
 let playerCount = 3;
 let activeBoardColors = null;
+const setupDoneButton = document.querySelector(".setup-done-button");
+const setupPreview = document.querySelector(".setup-preview");
+const setupPreviewSeed = document.querySelector(".setup-preview-seed");
+let pendingSeedType = null;
+let selectedSeedType = null;
+let pendingColor = null;
 let selectedColor = null;
 
 function updatePlayerCount() {
@@ -279,6 +285,7 @@ function saveGame() {
         version: saveVersion,
         tutorialCompleted,
         selectedColor,
+        selectedSeedType,
         normalMode,
         activeBoardColors,
         currentLevel,
@@ -379,6 +386,7 @@ function isValidSaveData(data) {
             data.activeBoardColors.some(color => !["red", "green", "yellow"].includes(color)) ||
             !data.activeBoardColors.includes(data.selectedColor) ||
             data.boardTileCount !== 1 + 7 * data.activeBoardColors.length)) ||
+        (data.selectedSeedType != null && !["maple", "birch", "spruce", "oak"].includes(data.selectedSeedType)) ||
         (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
         (data.selectedColor != null && !["red", "green", "yellow"].includes(data.selectedColor)) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
@@ -551,6 +559,11 @@ function updateMoneyDisplay() {
     [plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton].forEach((button) => {
         button.hidden = tutorialActive;
     });
+    if (normalMode) {
+        for (const [type, button] of [["maple", plantMapleButton], ["birch", plantBirchButton], ["spruce", plantSpruceButton], ["oak", plantOakButton]]) {
+            button.hidden = type !== selectedSeedType;
+        }
+    }
     moneyAmount.textContent = (moneyInCents / 100).toString();
     const noPlantableTiles = getPlantableTiles().length === 0;
     const cannotPlantSeed = moneyInCents < seedCostInCents || noPlantableTiles;
@@ -1163,6 +1176,7 @@ function continueGame() {
     if (!savedGameData || !isValidSaveData(savedGameData)) return;
 
     normalMode = savedGameData.normalMode ?? getSavedStartingTileCount(savedGameData) !== 1;
+    selectedSeedType = savedGameData.selectedSeedType ?? null;
     selectedColor = savedGameData.selectedColor ?? null;
     activeBoardColors = savedGameData.activeBoardColors ?? null;
     playerCount = activeBoardColors?.length ?? 3;
@@ -1185,25 +1199,20 @@ function continueGame() {
     restoreSavedTileObstacles(savedGameData.obstacles ?? []);
     savedGameData.seeds.forEach(addPlantedSeed);
     updateMoneyDisplay();
-    if (startingTileCount === 22 && !selectedColor) {
-        choosingColorForContinue = true;
-        playerCountSlider.value = String(playerCount);
-        playerCountSlider.disabled = true;
-        updatePlayerCount();
-        colorDialog.showModal();
+    if (normalMode && (!selectedColor || !selectedSeedType)) {
+        openPlayerSetup(true);
         return;
     }
     startGame();
 }
 
-function startNewGame(withTutorial = false, color = null, withLevels = false) {
-    if (!withTutorial && !withLevels && !["red", "green", "yellow"].includes(color)) {
-        choosingColorForContinue = false;
-        playerCountSlider.disabled = false;
-        updatePlayerCount();
-        colorDialog.showModal();
+function startNewGame(withTutorial = false, color = null, withLevels = false, seedType = null) {
+    if (!withTutorial && !withLevels &&
+        (!["red", "green", "yellow"].includes(color) || !["maple", "birch", "spruce", "oak"].includes(seedType))) {
+        openPlayerSetup(false);
         return;
     }
+
     try {
         localStorage.removeItem(saveStorageKey);
     } catch (error) {
@@ -1213,6 +1222,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false) {
 
     savedGameData = null;
     normalMode = !withTutorial && !withLevels;
+    selectedSeedType = normalMode ? seedType : null;
     if (tutorialWelcomeDialog.open) tutorialWelcomeDialog.close();
     document.querySelector(".tutorial-done-prompt").hidden = true;
     payoutControls.setAttribute("data-tutorial-focus", "false");
@@ -1236,22 +1246,68 @@ function startNewGame(withTutorial = false, color = null, withLevels = false) {
     startGame();
 }
 
+function updateSetupPreview() {
+    setupPreview.setAttribute("data-color", pendingColor ?? "none");
+    setupPreview.setAttribute("aria-label", pendingColor
+        ? `${pendingColor} circle${pendingSeedType ? ` with ${pendingSeedType} seed` : ""}`
+        : "Choose a color and seed");
+    setupPreviewSeed.hidden = !pendingColor || !pendingSeedType;
+    if (pendingSeedType) {
+        setupPreviewSeed.src = `images/${pendingSeedType}/seed.png`;
+        setupPreviewSeed.alt = `${pendingSeedType} seed`;
+    }
+    setupDoneButton.disabled = !pendingColor || !pendingSeedType;
+    for (const color of ["red", "green", "yellow"]) {
+        const button = document.querySelector(`.choose-${color}`);
+        button.setAttribute("aria-pressed", String(color === pendingColor));
+        button.disabled = choosingColorForContinue && activeBoardColors !== null && !activeBoardColors.includes(color);
+    }
+    for (const type of ["maple", "birch", "spruce", "oak"]) {
+        document.querySelector(`.choose-seed-${type}`).setAttribute("aria-pressed", String(type === pendingSeedType));
+    }
+}
+
+function openPlayerSetup(resuming) {
+    choosingColorForContinue = resuming;
+    pendingColor = resuming ? selectedColor : null;
+    pendingSeedType = resuming ? selectedSeedType : null;
+    playerCountSlider.disabled = resuming;
+    if (resuming) playerCountSlider.value = String(playerCount);
+    updatePlayerCount();
+    updateSetupPreview();
+    colorDialog.showModal();
+}
+
 for (const color of ["red", "green", "yellow"]) {
     document.querySelector(`.choose-${color}`).addEventListener("click", () => {
-        colorDialog.close();
-        if (choosingColorForContinue) {
-            selectedColor = color;
-            // Refresh tile colors for purchased land before resuming.
-            tileElements.forEach((tile, key) => {
-                const [q, r] = key.split(",").map(Number);
-                tile.setAttribute("data-color", getBoardTileColor(q, r));
-            });
-            startGame();
-        } else {
-            startNewGame(false, color);
-        }
+        if (choosingColorForContinue && activeBoardColors && !activeBoardColors.includes(color)) return;
+        pendingColor = color;
+        updateSetupPreview();
     });
 }
+
+for (const seedType of ["maple", "birch", "spruce", "oak"]) {
+    document.querySelector(`.choose-seed-${seedType}`).addEventListener("click", () => {
+        pendingSeedType = seedType;
+        updateSetupPreview();
+    });
+}
+
+setupDoneButton.addEventListener("click", () => {
+    if (!pendingColor || !pendingSeedType) return;
+    colorDialog.close();
+    if (choosingColorForContinue) {
+        selectedColor = pendingColor;
+        selectedSeedType = pendingSeedType;
+        tileElements.forEach((tile, key) => {
+            const [q, r] = key.split(",").map(Number);
+            tile.setAttribute("data-color", getBoardTileColor(q, r));
+        });
+        startGame();
+    } else {
+        startNewGame(false, pendingColor, false, pendingSeedType);
+    }
+});
 
 continueGameButton.addEventListener("click", continueGame);
 nextLevelButton.addEventListener("click", advanceToNextLevel);
@@ -1259,7 +1315,8 @@ newGameButton.addEventListener("click", () => startNewGame());
 tutorialButton.addEventListener("click", () => startNewGame(true));
 window.addEventListener("beforeunload", saveGame);
 
-function plantSeed(treeType = "maple") {
+function plantSeed(treeType = normalMode ? selectedSeedType : "maple") {
+    if (normalMode && treeType !== selectedSeedType) return;
     if (!["maple", "birch", "spruce", "oak"].includes(treeType)) return;
     const plantingCost = treeType === "oak" ? oakSeedCostInCents : seedCostInCents;
     const plantableTiles = getPlantableTiles();
