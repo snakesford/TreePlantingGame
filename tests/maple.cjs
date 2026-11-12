@@ -848,6 +848,7 @@ assert.equal(unchosen.run('plantedSeeds.length'), 0);
 assert.equal(unchosen.elements.get('.plant-maple-button').disabled, true);
 const oldColorSave = JSON.parse(refreshedModeMenu.storage.get('tree-planting-game-save'));
 delete oldColorSave.selectedColor;
+delete oldColorSave.activeBoardColors;
 const oldColorGame = game(JSON.stringify(oldColorSave));
 oldColorGame.run('continueGame()');
 assert.equal(oldColorGame.elements.get('.color-dialog').open, true);
@@ -878,3 +879,35 @@ const freeBalance = freePlayResume.run('moneyInCents');
 freePlayResume.elements.get('.done-button').events.click();
 assert.equal(freePlayResume.run('moneyInCents'), freeBalance + 280);
 console.log('Normal mode hides and disables levels, retains its board, saves mode, and continues payouts.');
+
+for (const count of [1, 2, 3]) {
+    for (const color of ['red', 'green', 'yellow']) {
+        const setup = game();
+        setup.elements.get('.new-game-button').events.click();
+        const slider = setup.elements.get('.player-count-slider');
+        slider.value = String(count);
+        slider.events.input();
+        assert.equal(setup.elements.get('.player-count-output').textContent, `${count} ${count === 1 ? 'player' : 'players'}`);
+        setup.elements.get(`.choose-${color}`).events.click();
+        assert.equal(setup.run('boardTileCoordinates.length'), 1 + count * 7);
+        assert.equal(setup.run('boardTileKeys.size'), 1 + count * 7);
+        assert.equal(setup.run('activeBoardColors.length'), count);
+        assert.equal(setup.run('activeBoardColors.includes(selectedColor)'), true);
+        assert.equal(setup.run('getPlantableTiles().length'), 7);
+        for (const region of setup.run('activeBoardColors')) {
+            assert.equal(setup.run(`Array.from(tileElements.values()).filter(tile => tile.getAttribute("data-color") === "${region}").length`), 7);
+        }
+        assert.equal(setup.run('tileElements.get("0,0").getAttribute("data-color")'), 'blue');
+        setup.run('plantSeed()');
+        setup.elements.get('.buy-tile-button').events.click();
+        const resumed = game(setup.storage.get('tree-planting-game-save'));
+        resumed.run('continueGame()');
+        assert.equal(resumed.run('gameStarted'), true);
+        assert.equal(resumed.run('boardTileCoordinates.length'), 2 + count * 7);
+        assert.equal(resumed.run('playerCount'), count);
+        assert.equal(resumed.run('selectedColor'), color);
+        assert.equal(resumed.run('plantedSeeds.length'), 1);
+        assert.equal(JSON.stringify(resumed.run('boardTileCoordinates')), JSON.stringify(setup.run('boardTileCoordinates')));
+    }
+}
+console.log('Player slider builds and saves all nine player-count/color combinations, with one blue center and seven tiles per active color.');

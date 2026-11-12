@@ -708,3 +708,20 @@ main {
 .save-slot-actions .choose-red { background: #e8786d; color: #421b18; }
 .save-slot-actions .choose-green { background: #69a373; color: #102d16; }
 .save-slot-actions .choose-yellow { background: #f2cf65; color: #40330d; }
+
+.color-dialog {
+    width: min(92vw, 600px);
+    max-height: 90svh;
+    overflow-y: auto;
+    padding: clamp(24px, 5vw, 48px);
+    border-radius: 20px;
+}
+.color-dialog h1 { margin: 0 0 12px; text-align: center; font-size: 2rem; }
+.color-dialog > p { text-align: center; line-height: 1.5; }
+.color-dialog .save-slot-actions { gap: 16px; margin-top: 32px; }
+.color-dialog .save-slot-actions button { flex: 1; min-height: 72px; font-size: 1.1rem; border-radius: 12px; }
+.player-count-control { display: grid; grid-template-columns: 1fr auto; gap: 16px; margin-top: 32px; }
+.player-count-control label, .player-count-output { font-weight: 700; }
+.player-count-slider { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: #327b35; min-height: 32px; }
+.player-count-ticks { grid-column: 1 / -1; display: flex; justify-content: space-between; padding: 0 6px; }
+.player-count-slider:focus-visible { outline: 3px solid #65b947; outline-offset: 4px; }

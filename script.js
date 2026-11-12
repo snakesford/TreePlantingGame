@@ -54,7 +54,21 @@ const continueGameButton = document.querySelector(".continue-game-button");
 const newGameButton = document.querySelector(".new-game-button");
 const tutorialButton = document.querySelector(".tutorial-button");
 const colorDialog = document.querySelector(".color-dialog");
+const playerCountSlider = document.querySelector(".player-count-slider");
+const playerCountOutput = document.querySelector(".player-count-output");
+let playerCount = 3;
+let activeBoardColors = null;
 let selectedColor = null;
+
+function updatePlayerCount() {
+    const value = Number(playerCountSlider.value);
+    playerCount = [1, 2, 3].includes(value) ? value : 3;
+    playerCountSlider.value = String(playerCount);
+    playerCountOutput.textContent = `${playerCount} ${playerCount === 1 ? "player" : "players"}`;
+    playerCountSlider.setAttribute("aria-valuetext", playerCountOutput.textContent);
+}
+
+playerCountSlider.addEventListener("input", updatePlayerCount);
 let choosingColorForContinue = false;
 const tutorialWelcomeDialog = document.querySelector(".tutorial-welcome-dialog");
 let tutorialPromptReady = false;
@@ -236,6 +250,7 @@ function saveGame() {
         tutorialCompleted,
         selectedColor,
         normalMode,
+        activeBoardColors,
         currentLevel,
         boardTileCount: startingTileCount,
         boardLayoutVersion,
@@ -328,11 +343,17 @@ function isValidSaveData(data) {
         !data ||
         typeof data !== "object" ||
         ![1, 2, 3, 4, saveVersion].includes(data.version) ||
+        (data.activeBoardColors != null && (!Array.isArray(data.activeBoardColors) ||
+            data.activeBoardColors.length < 1 || data.activeBoardColors.length > 3 ||
+            new Set(data.activeBoardColors).size !== data.activeBoardColors.length ||
+            data.activeBoardColors.some(color => !["red", "green", "yellow"].includes(color)) ||
+            !data.activeBoardColors.includes(data.selectedColor) ||
+            data.boardTileCount !== 1 + 7 * data.activeBoardColors.length)) ||
         (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
         (data.selectedColor != null && !["red", "green", "yellow"].includes(data.selectedColor)) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
         (data.boardLayoutVersion !== undefined && ![1, 2].includes(data.boardLayoutVersion)) ||
-        (data.boardTileCount !== undefined && ![1, 7, 12, 15, 19, 22, 27, 36, 91].includes(data.boardTileCount)) ||
+        (data.boardTileCount !== undefined && ![1, 7, 8, 12, 15, 19, 22, 27, 36, 91].includes(data.boardTileCount)) ||
         (data.boardSideLength !== undefined && ![2, 6].includes(data.boardSideLength)) ||
         (data.levelOneCompleted !== undefined && typeof data.levelOneCompleted !== "boolean") ||
         (data.levelTwoCompleted !== undefined && typeof data.levelTwoCompleted !== "boolean") ||
@@ -355,7 +376,7 @@ function isValidSaveData(data) {
     );
     const additionalTiles = data.additionalTiles ?? [];
     const obstacleTiles = data.obstacles ?? [];
-    const startingTiles = getStartingCoordinates(getSavedStartingTileCount(data), data.boardLayoutVersion ?? 1);
+    const startingTiles = getStartingCoordinates(getSavedStartingTileCount(data), data.boardLayoutVersion ?? 1, data.activeBoardColors ?? null);
     const knownTileKeys = new Set(startingTiles.map(({ q, r }) => getTileKey(q, r)));
     const tilePositions = startingTiles.map(({ q, r }) => getTileCenter(q, r));
     for (const tile of additionalTiles) {
@@ -1112,6 +1133,8 @@ function continueGame() {
 
     normalMode = savedGameData.normalMode ?? getSavedStartingTileCount(savedGameData) !== 1;
     selectedColor = savedGameData.selectedColor ?? null;
+    activeBoardColors = savedGameData.activeBoardColors ?? null;
+    playerCount = activeBoardColors?.length ?? 3;
     moneyInCents = savedGameData.moneyInCents;
     tutorialCompleted = savedGameData.tutorialCompleted === true;
     currentLevel = savedGameData.currentLevel ?? 1;
@@ -1133,6 +1156,9 @@ function continueGame() {
     updateMoneyDisplay();
     if (startingTileCount === 22 && !selectedColor) {
         choosingColorForContinue = true;
+        playerCountSlider.value = String(playerCount);
+        playerCountSlider.disabled = true;
+        updatePlayerCount();
         colorDialog.showModal();
         return;
     }
@@ -1142,6 +1168,8 @@ function continueGame() {
 function startNewGame(withTutorial = false, color = null) {
     if (!withTutorial && !["red", "green", "yellow"].includes(color)) {
         choosingColorForContinue = false;
+        playerCountSlider.disabled = false;
+        updatePlayerCount();
         colorDialog.showModal();
         return;
     }
@@ -1162,9 +1190,10 @@ function startNewGame(withTutorial = false, color = null) {
     savedGameData = null;
     normalMode = !withTutorial;
     selectedColor = withTutorial ? null : color;
+    activeBoardColors = withTutorial ? null : [color, ...["green", "yellow", "red"].filter(other => other !== color)].slice(0, playerCount);
     tutorialCompleted = false;
     currentLevel = 1;
-    startingTileCount = withTutorial ? 1 : levelTileCounts[0];
+    startingTileCount = withTutorial ? 1 : 1 + 7 * activeBoardColors.length;
     boardLayoutVersion = 2;
     resetBoard();
     levelOneCompleted = false;
@@ -1259,9 +1288,10 @@ function getSavedStartingTileCount(data) {
     return 1 + 3 * length * (length - 1);
 }
 
-function getNormalBoardCoordinates() {
+function getNormalBoardCoordinates(colors = activeBoardColors) {
     const coordinates = [{ q: 0, r: 0, color: "blue" }];
     for (const [q, r, color] of [[1, -2, "green"], [1, 1, "yellow"], [-2, 1, "red"]]) {
+        if (colors && !colors.includes(color)) continue;
         coordinates.push({ q, r, color });
         tileNeighborOffsets.forEach(([dq, dr]) => coordinates.push({ q: q + dq, r: r + dr, color }));
     }
@@ -1269,12 +1299,12 @@ function getNormalBoardCoordinates() {
 }
 
 function getBoardTileColor(q, r) {
-    if (startingTileCount !== 22) return selectedColor ?? "green";
+    if (!activeBoardColors && startingTileCount !== 22) return selectedColor ?? "green";
     return getNormalBoardCoordinates().find(tile => tile.q === q && tile.r === r)?.color ?? selectedColor ?? "green";
 }
 
-function getStartingCoordinates(count, layoutVersion = boardLayoutVersion) {
-    if (count === 22) return getNormalBoardCoordinates().map(({ q, r }) => ({ q, r }));
+function getStartingCoordinates(count, layoutVersion = boardLayoutVersion, colors = activeBoardColors) {
+    if (colors || count === 22) return getNormalBoardCoordinates(colors).map(({ q, r }) => ({ q, r }));
     let extent = 0;
     while (1 + 3 * extent * (extent + 1) < count) extent += 1;
     const coordinates = [];
