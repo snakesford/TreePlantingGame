@@ -54,7 +54,7 @@ function game(saved = null) {
     vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, '../script.js'), 'utf8'), context);
     elements.get('.hex-tiles').ownerSVGElement = new Element();
     // Fund upgrade and campaign fixtures independently of the game's starting balance.
-    vm.runInContext('moneyInCents = 9999999', context);
+    vm.runInContext('moneyInCents = 9999999; selectedColor = "green"', context);
     return { run: code => vm.runInContext(code, context), elements, storage };
 }
 
@@ -138,6 +138,8 @@ assert.equal(completedTutorial.run('tutorialCompleted'), true);
 assert.equal(completedTutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
 const skippedTutorial = game();
 skippedTutorial.elements.get('.new-game-button').events.click({ type: 'click' });
+assert.equal(skippedTutorial.elements.get('.color-dialog').open, true);
+skippedTutorial.elements.get('.choose-green').events.click();
 assert.equal(skippedTutorial.run('boardTileCoordinates.length'), 22);
 assert.equal(skippedTutorial.run('plantedSeeds.length'), 0);
 assert.equal(skippedTutorial.elements.get('.level-indicator').hidden, false);
@@ -147,6 +149,7 @@ const refreshedModeMenu = game(tutorialSave);
 assert.equal(refreshedModeMenu.elements.get('.save-slot-dialog').open, true);
 refreshedModeMenu.run('window.confirm = () => true');
 refreshedModeMenu.elements.get('.new-game-button').events.click();
+refreshedModeMenu.elements.get('.choose-green').events.click();
 assert.equal(refreshedModeMenu.elements.get('.save-slot-dialog').open, false);
 assert.equal(refreshedModeMenu.run('boardTileCoordinates.length'), 22);
 assert.equal(refreshedModeMenu.run('boardTileKeys.has("0,0")'), true);
@@ -807,3 +810,50 @@ assert.equal(payouts.run('moneyInCents'), upgradedBalance + 90);
 payouts.run('while (plantedSeeds.length) compostTree(plantedSeeds[0])');
 assert.equal(payoutButton.disabled, true);
 console.log('Done pays current tree income once per click, saves earnings, respects game start, and migrates timed saves without passive growth.');
+
+for (const color of ['red', 'green', 'yellow']) {
+    const colored = game();
+    colored.elements.get('.new-game-button').events.click();
+    assert.equal(colored.elements.get('.color-dialog').open, true);
+    assert.equal(colored.run('gameStarted'), false);
+    colored.elements.get(`.choose-${color}`).events.click();
+    assert.equal(colored.run('selectedColor'), color);
+    assert.equal(colored.run('gameStarted'), true);
+    colored.run('for (let i = 0; i < 7; i++) plantSeed(["maple", "birch", "spruce", "oak"][i % 4])');
+    assert.equal(colored.run('plantedSeeds.length'), 7);
+    assert.equal(colored.run('plantedSeeds.every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
+    assert.equal(colored.run('availableTiles.length'), 15);
+    assert.equal(colored.elements.get('.plant-maple-button').disabled, true);
+    assert.equal(colored.elements.get('.plant-oak-button').disabled, true);
+    const balance = colored.run('moneyInCents');
+    colored.run('plantSeed()');
+    assert.equal(colored.run('moneyInCents'), balance);
+    const resumed = game(colored.storage.get('tree-planting-game-save'));
+    resumed.run('continueGame()');
+    assert.equal(resumed.run('selectedColor'), color);
+    assert.equal(resumed.run('getPlantableTiles().length'), 0);
+    resumed.run('compostTree(plantedSeeds[0])');
+    assert.equal(resumed.run('getPlantableTiles().length'), 1);
+    resumed.run('plantSeed()');
+    assert.equal(resumed.run('plantedSeeds.length'), 7);
+    resumed.elements.get('.buy-tile-button').events.click();
+    assert.equal(resumed.run('getPlantableTiles().length'), 1);
+    resumed.run('plantSeed()');
+    assert.equal(resumed.run('plantedSeeds.every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
+}
+console.log('All color choices restrict every seed type, persist on reload, block full regions, and support composting and expansion.');
+const unchosen = game();
+unchosen.run('selectedColor = null; updateMoneyDisplay(); plantSeed()');
+assert.equal(unchosen.run('plantedSeeds.length'), 0);
+assert.equal(unchosen.elements.get('.plant-maple-button').disabled, true);
+const oldColorSave = JSON.parse(refreshedModeMenu.storage.get('tree-planting-game-save'));
+delete oldColorSave.selectedColor;
+const oldColorGame = game(JSON.stringify(oldColorSave));
+oldColorGame.run('continueGame()');
+assert.equal(oldColorGame.elements.get('.color-dialog').open, true);
+assert.equal(oldColorGame.run('gameStarted'), false);
+oldColorGame.elements.get('.choose-red').events.click();
+assert.equal(oldColorGame.run('gameStarted'), true);
+assert.equal(oldColorGame.run('selectedColor'), 'red');
+assert.equal(JSON.parse(oldColorGame.storage.get('tree-planting-game-save')).selectedColor, 'red');
+console.log('Unselected boards prevent planting and existing normal saves request and persist a color.');

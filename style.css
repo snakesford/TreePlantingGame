@@ -471,6 +471,7 @@ main {
     outline-offset: 3px;
 }
 
+.color-dialog,
 .save-slot-dialog,
 .tutorial-welcome-dialog {
     position: fixed;
@@ -485,6 +486,7 @@ main {
     font-family: sans-serif;
 }
 
+.color-dialog::backdrop,
 .save-slot-dialog::backdrop,
 .tutorial-welcome-dialog::backdrop {
     background: rgb(26 39 28 / 55%);
@@ -701,3 +703,8 @@ main {
 .tile-body[data-color="red"] .tile-surface { fill: #e8786d; }
 .tile-body[data-color="blue"] .hex-tile { fill: #467da9; }
 .tile-body[data-color="blue"] .tile-surface { fill: #6cafe0; }
+
+.save-slot-actions .choose-red { background: #e8786d; color: #421b18; }
+.save-slot-actions .choose-green { background: #69a373; color: #102d16; }
+.save-slot-actions .choose-yellow { background: #f2cf65; color: #40330d; }
+.player-color-label { font-weight: 700; text-transform: capitalize; }

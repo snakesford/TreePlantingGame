@@ -19,6 +19,7 @@
     </div>
     <div class="level-details">
       <p class="level-objective"></p>
+      <p class="player-color-label" hidden></p>
       <p class="level-progress-text"></p>
       <p class="level-notification" role="status" aria-live="polite" hidden></p>
     </div>
@@ -75,6 +76,15 @@
       <button class="tutorial-button" type="button">Start with Tutorial</button>
     </div>
     <p>Normal Mode starts with green, yellow, and red seven-tile hexagons around a blue center hex.</p>
+  </dialog>
+  <dialog class="color-dialog" aria-labelledby="color-title">
+    <h1 id="color-title">Choose your color</h1>
+    <p>You can only plant on tiles of your color.</p>
+    <div class="save-slot-actions">
+      <button class="choose-red" type="button">Red</button>
+      <button class="choose-green" type="button">Green</button>
+      <button class="choose-yellow" type="button">Yellow</button>
+    </div>
   </dialog>
   <dialog class="tutorial-welcome-dialog" aria-labelledby="tutorial-welcome-title">
     <h1 id="tutorial-welcome-title">Welcome to the tutorial!</h1>
