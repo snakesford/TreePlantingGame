@@ -79,6 +79,10 @@ document.querySelector(".menu-tutorial-button").addEventListener("click", () => 
     setGameMenuOpen(false);
     startNewGame(true);
 });
+document.querySelector(".menu-level-button").addEventListener("click", () => {
+    setGameMenuOpen(false);
+    startNewGame(false, null, true);
+});
 const colorDialog = document.querySelector(".color-dialog");
 const playerCountSlider = document.querySelector(".player-count-slider");
 const playerCountOutput = document.querySelector(".player-count-output");
@@ -1139,7 +1143,7 @@ document.querySelector(".tutorial-welcome-dismiss").addEventListener("click", ()
 });
 tutorialWelcomeDialog.addEventListener("close", () => {
     window.setTimeout(() => {
-        if (normalMode || tutorialCompleted) return;
+        if (startingTileCount !== 1 || tutorialCompleted) return;
         document.querySelector(".tutorial-done-prompt").hidden = false;
         payoutControls.setAttribute("data-tutorial-focus", "true");
         document.querySelector(".tutorial-done-next").focus();
@@ -1192,21 +1196,14 @@ function continueGame() {
     startGame();
 }
 
-function startNewGame(withTutorial = false, color = null) {
-    if (!withTutorial && !["red", "green", "yellow"].includes(color)) {
+function startNewGame(withTutorial = false, color = null, withLevels = false) {
+    if (!withTutorial && !withLevels && !["red", "green", "yellow"].includes(color)) {
         choosingColorForContinue = false;
         playerCountSlider.disabled = false;
         updatePlayerCount();
         colorDialog.showModal();
         return;
     }
-    if (
-        hasStoredSave &&
-        !window.confirm("Start a new game and replace the saved progress?")
-    ) {
-        return;
-    }
-
     try {
         localStorage.removeItem(saveStorageKey);
     } catch (error) {
@@ -1215,15 +1212,15 @@ function startNewGame(withTutorial = false, color = null) {
     }
 
     savedGameData = null;
-    normalMode = !withTutorial;
+    normalMode = !withTutorial && !withLevels;
     if (tutorialWelcomeDialog.open) tutorialWelcomeDialog.close();
     document.querySelector(".tutorial-done-prompt").hidden = true;
     payoutControls.setAttribute("data-tutorial-focus", "false");
-    selectedColor = withTutorial ? null : color;
-    activeBoardColors = withTutorial ? null : [color, ...["green", "yellow", "red"].filter(other => other !== color)].slice(0, playerCount);
+    selectedColor = normalMode ? color : null;
+    activeBoardColors = normalMode ? [color, ...["green", "yellow", "red"].filter(other => other !== color)].slice(0, playerCount) : null;
     tutorialCompleted = false;
     currentLevel = 1;
-    startingTileCount = withTutorial ? 1 : 1 + 7 * activeBoardColors.length;
+    startingTileCount = withTutorial ? 1 : withLevels ? 7 : 1 + 7 * activeBoardColors.length;
     boardLayoutVersion = 2;
     resetBoard();
     levelOneCompleted = false;
