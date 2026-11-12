@@ -429,12 +429,112 @@ main {
     transform: translate(-50%, -100%) rotate(-2deg);
 }
 
+.daylight-clock[data-tutorial-focus="true"] {
+    border-radius: 14px;
+    outline: 3px solid #65b947;
+    outline-offset: 6px;
+    box-shadow: 0 0 0 12px rgb(101 185 71 / 18%);
+}
+
+.daylight-clock {
+    position: relative;
+}
+
+.tutorial-clock-prompt {
+    top: calc(100% + 32px);
+    bottom: auto;
+    left: auto;
+    right: 0;
+    width: 300px;
+    transform: none;
+    pointer-events: auto;
+}
+
+.tutorial-clock-prompt p {
+    margin: 0 0 14px;
+}
+
+.tutorial-clock-prompt::before {
+    display: none;
+}
+
+.tutorial-clock-prompt::after {
+    top: -16px;
+    left: auto;
+    right: 24px;
+    border-top: 0;
+    border-bottom: 14px solid #65b947;
+    filter: none;
+}
+
+.tutorial-clock-next {
+    padding: 10px 14px;
+    border: 2px solid #fff;
+    border-radius: 8px;
+    background: #fff;
+    color: #205627;
+    font: 700 0.95rem/1.3 sans-serif;
+    cursor: pointer;
+}
+
+.tutorial-clock-next:focus-visible {
+    outline: 3px solid #205627;
+    outline-offset: 3px;
+}
+
 .tutorial-sprout-prompt {
     position: fixed;
     bottom: auto;
     padding: 12px;
     transform: translate(-100%, -50%);
     font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+}
+
+.tutorial-compost-prompt {
+    width: 290px;
+    padding: 12px;
+    transform: translateY(-50%);
+    font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+}
+
+.tutorial-compost-prompt::before {
+    display: none;
+}
+
+.tutorial-compost-prompt::after {
+    top: 50%;
+    left: -16px;
+    transform: translateY(-50%);
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-left: 0;
+    border-right: 14px solid #327b35;
+}
+
+.money-counter[data-compost-highlight="true"] {
+    position: relative;
+    border-radius: 12px;
+    background: #dcf6c8;
+    outline: 3px solid #65b947;
+    outline-offset: 6px;
+    box-shadow: 0 0 0 12px rgb(101 185 71 / 20%);
+}
+
+.compost-reward {
+    position: absolute;
+    z-index: 3;
+    top: calc(100% + 18px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(260px, 80vw);
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #327b35;
+    box-shadow: 0 4px 0 #205627;
+    color: white;
+    font: 700 0.95rem/1.3 sans-serif;
+    text-align: center;
 }
 
 .tutorial-sprout-prompt::before,

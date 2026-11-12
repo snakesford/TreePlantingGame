@@ -23,6 +23,7 @@ class Element {
     remove() { this.removed = true; }
     prepend() {}
     show() { this.open = true; }
+    focus() { this.focused = true; }
     showModal() { this.open = true; }
     close() { this.open = false; }
     getBoundingClientRect() { return { left: 400, top: 400, width: 30, height: 30 }; }
@@ -40,7 +41,7 @@ function game(saved = null) {
             createElement: () => new Element(),
             createElementNS: () => new Element(),
         },
-        window: { addEventListener() {}, setInterval() {}, innerWidth: 1000, innerHeight: 800 },
+        window: { addEventListener() {}, setInterval() {}, setTimeout() {}, innerWidth: 1000, innerHeight: 800 },
         localStorage: {
             getItem: key => storage.get(key) ?? null,
             setItem: (key, value) => storage.set(key, value),
@@ -70,6 +71,12 @@ assert.equal(tutorial.elements.get('.tutorial-welcome-dialog').open, false);
 tutorial.elements.get('.tutorial-welcome-dialog').events.close();
 assert.equal(tutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
 assert.equal(tutorial.run('window.promptDelay'), 700);
+tutorial.run('window.pendingPrompt()');
+assert.equal(tutorial.elements.get('.tutorial-clock-prompt').hidden, false);
+assert.equal(tutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
+tutorial.elements.get('.tutorial-clock-next').events.click();
+assert.equal(tutorial.elements.get('.tutorial-clock-prompt').hidden, true);
+assert.equal(tutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
 tutorial.run('window.pendingPrompt()');
 assert.equal(tutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, false);
 assert.equal(tutorial.elements.get('.level-indicator').hidden, true);
@@ -107,6 +114,26 @@ assert.equal(resumedTutorial.run('tileObstacles.size'), 0);
 assert.equal(resumedTutorial.elements.get('.tutorial-sprout-prompt').hidden, false);
 resumedTutorial.run('moneyInCents = 2000; while (plantedSeeds[0].stageIndex < 2) upgradeSeed(plantedSeeds[0])');
 assert.equal(resumedTutorial.elements.get('.tutorial-sprout-prompt').hidden, true);
+assert.equal(resumedTutorial.elements.get('.tutorial-compost-prompt').hidden, true);
+assert.equal(resumedTutorial.run('window.upgradePromptDelay'), 700);
+resumedTutorial.run('window.pendingUpgradePrompt()');
+assert.equal(resumedTutorial.elements.get('.tutorial-compost-prompt').hidden, false);
+const beforeTutorialCompost = resumedTutorial.run('moneyInCents');
+const tutorialCompostReward = resumedTutorial.run('getCompostReward(plantedSeeds[0])');
+resumedTutorial.run('compostTree(plantedSeeds[0])');
+assert.equal(resumedTutorial.run('moneyInCents'), beforeTutorialCompost + tutorialCompostReward);
+assert.equal(resumedTutorial.elements.get('.money-counter').getAttribute('data-compost-highlight'), 'true');
+assert.equal(resumedTutorial.elements.get('.compost-reward').hidden, false);
+assert.equal(resumedTutorial.run('window.upgradePromptDelay'), 3500);
+resumedTutorial.run('window.pendingUpgradePrompt()');
+assert.equal(resumedTutorial.elements.get('.money-counter').getAttribute('data-compost-highlight'), 'false');
+assert.equal(resumedTutorial.elements.get('.compost-reward').hidden, true);
+assert.equal(resumedTutorial.elements.get('.tutorial-compost-prompt').hidden, true);
+assert.equal(resumedTutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
+const completedTutorial = game(resumedTutorial.storage.get('tree-planting-game-save'));
+completedTutorial.run('continueGame()');
+assert.equal(completedTutorial.run('tutorialCompleted'), true);
+assert.equal(completedTutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
 const skippedTutorial = game();
 skippedTutorial.elements.get('.new-game-button').events.click({ type: 'click' });
 assert.equal(skippedTutorial.run('boardTileCoordinates.length'), 7);
