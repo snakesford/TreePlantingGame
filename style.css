@@ -398,6 +398,8 @@ main {
     object-fit: contain;
 }
 
+.level-indicator[hidden],
+.level-details[hidden],
 .game-actions button[hidden] {
     display: none;
 }
@@ -446,6 +448,7 @@ main {
 
 .save-slot-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 10px;
     margin-top: 20px;

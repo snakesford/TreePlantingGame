@@ -44,6 +44,7 @@ function game(saved = null) {
         localStorage: {
             getItem: key => storage.get(key) ?? null,
             setItem: (key, value) => storage.set(key, value),
+            removeItem: key => storage.delete(key),
         },
         performance: { now: () => 0 },
         requestAnimationFrame() {},
@@ -55,6 +56,43 @@ function game(saved = null) {
 }
 
 const g = game();
+const tutorial = game();
+assert.equal(tutorial.elements.get('.save-slot-dialog').open, true);
+tutorial.elements.get('.tutorial-button').events.click();
+assert.equal(tutorial.elements.get('.save-slot-dialog').open, false);
+assert.equal(tutorial.run('gameStarted'), true);
+assert.equal(tutorial.elements.get('.level-indicator').hidden, true);
+assert.equal(tutorial.elements.get('.level-details').hidden, true);
+assert.equal(tutorial.run('boardTileCoordinates.length'), 1);
+assert.equal(tutorial.run('tileObstacles.size'), 0);
+assert.equal(tutorial.run('plantedSeeds.length'), 0);
+assert.equal(tutorial.run('availableTiles.length'), 1);
+assert.equal(tutorial.elements.get('.plant-maple-button').hidden, false);
+assert.equal(tutorial.elements.get('.plant-maple-button').disabled, false);
+for (const selector of ['.plant-birch-button', '.plant-spruce-button', '.plant-oak-button', '.buy-tile-button']) {
+    assert.equal(tutorial.elements.get(selector).hidden, true);
+}
+const tutorialSave = tutorial.storage.get('tree-planting-game-save');
+const resumedTutorial = game(tutorialSave);
+resumedTutorial.elements.get('.continue-game-button').events.click();
+assert.equal(resumedTutorial.run('gameStarted'), true);
+assert.equal(resumedTutorial.elements.get('.level-indicator').hidden, true);
+assert.equal(resumedTutorial.elements.get('.level-details').hidden, true);
+assert.equal(resumedTutorial.run('boardTileCoordinates.length'), 1);
+assert.equal(resumedTutorial.run('plantedSeeds.length'), 0);
+assert.equal(resumedTutorial.elements.get('.plant-birch-button').hidden, true);
+resumedTutorial.elements.get('.plant-maple-button').events.click();
+assert.equal(resumedTutorial.run('plantedSeeds.length'), 1);
+assert.equal(resumedTutorial.run('plantedSeeds[0].treeType'), 'maple');
+assert.equal(resumedTutorial.run('tileObstacles.size'), 0);
+const skippedTutorial = game();
+skippedTutorial.elements.get('.new-game-button').events.click({ type: 'click' });
+assert.equal(skippedTutorial.run('boardTileCoordinates.length'), 7);
+assert.equal(skippedTutorial.run('plantedSeeds.length'), 0);
+assert.equal(skippedTutorial.elements.get('.level-indicator').hidden, false);
+assert.equal(skippedTutorial.elements.get('.level-details').hidden, false);
+assert.equal(skippedTutorial.elements.get('.plant-birch-button').hidden, false);
+console.log('Tutorial empty tile, maple-only planting controls, save/continue, and normal new game passed.');
 g.elements.get('.plant-maple-button').events.click();
 assert.equal(g.run('plantedSeeds[0].treeType'), 'maple');
 assert.equal(g.run('moneyInCents'), 9999899);

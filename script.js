@@ -52,6 +52,7 @@ const saveSlotDialog = document.querySelector(".save-slot-dialog");
 const saveSlotSummary = document.querySelector(".save-slot-summary");
 const continueGameButton = document.querySelector(".continue-game-button");
 const newGameButton = document.querySelector(".new-game-button");
+const tutorialButton = document.querySelector(".tutorial-button");
 const saveStatus = document.querySelector(".save-status");
 const seedDialog = document.querySelector(".seed-dialog");
 const seedDialogTitle = document.querySelector("#seed-dialog-title");
@@ -66,7 +67,7 @@ const obstacleDialogTitle = document.querySelector("#obstacle-dialog-title");
 const obstaclePreviewImage = document.querySelector(".obstacle-preview img");
 const obstacleDescription = document.querySelector(".obstacle-description");
 let selectedObstacle = null;
-let moneyInCents = 9999999;
+let moneyInCents = 1000;
 const seedCostInCents = 100;
 const oakSeedCostInCents = 300;
 const tileCostInCents = 2500;
@@ -339,7 +340,7 @@ function isValidSaveData(data) {
         ![1, 2, 3, saveVersion].includes(data.version) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
         (data.boardLayoutVersion !== undefined && ![1, 2].includes(data.boardLayoutVersion)) ||
-        (data.boardTileCount !== undefined && ![7, 12, 15, 19, 27, 36, 91].includes(data.boardTileCount)) ||
+        (data.boardTileCount !== undefined && ![1, 7, 12, 15, 19, 27, 36, 91].includes(data.boardTileCount)) ||
         (data.boardSideLength !== undefined && ![2, 6].includes(data.boardSideLength)) ||
         (data.levelOneCompleted !== undefined && typeof data.levelOneCompleted !== "boolean") ||
         (data.levelTwoCompleted !== undefined && typeof data.levelTwoCompleted !== "boolean") ||
@@ -449,6 +450,11 @@ function countCycleTicks(cycleTime, tickTimes) {
 
 function updateMoneyDisplay() {
     updateLevelProgress();
+    const tutorialActive = startingTileCount === 1;
+    plantMapleButton.hidden = false;
+    [plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton].forEach((button) => {
+        button.hidden = tutorialActive;
+    });
     moneyAmount.textContent = (moneyInCents / 100).toString();
     const cannotPlantSeed = moneyInCents < seedCostInCents || availableTiles.length === 0;
     plantMapleButton.disabled = cannotPlantSeed;
@@ -470,6 +476,9 @@ const levelDefinitions = [
 ];
 
 function updateLevelProgress() {
+    const tutorialActive = startingTileCount === 1;
+    document.querySelector(".level-indicator").hidden = tutorialActive;
+    document.querySelector(".level-details").hidden = tutorialActive;
     const definition = levelDefinitions[currentLevel - 1];
     const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
     let count = plantedSeeds.length;
@@ -1068,7 +1077,7 @@ function continueGame() {
     startGame();
 }
 
-function startNewGame() {
+function startNewGame(withTutorial = false) {
     if (
         hasStoredSave &&
         !window.confirm("Start a new game and replace the saved progress?")
@@ -1085,7 +1094,7 @@ function startNewGame() {
 
     savedGameData = null;
     currentLevel = 1;
-    startingTileCount = levelTileCounts[0];
+    startingTileCount = withTutorial ? 1 : levelTileCounts[0];
     boardLayoutVersion = 2;
     resetBoard();
     levelOneCompleted = false;
@@ -1097,7 +1106,9 @@ function startNewGame() {
     elapsedCycleTime = 0;
     clockSpeed = 1;
     clockPaused = false;
-    spawnRandomTileObstacles();
+    if (!withTutorial) {
+        spawnRandomTileObstacles();
+    }
     clockSpeedButton.setAttribute("aria-pressed", "false");
     pauseClockButton.textContent = "⏸";
     pauseClockButton.setAttribute("aria-label", "Pause daylight clock");
@@ -1125,7 +1136,8 @@ pauseClockButton.addEventListener("click", () => {
 
 continueGameButton.addEventListener("click", continueGame);
 nextLevelButton.addEventListener("click", advanceToNextLevel);
-newGameButton.addEventListener("click", startNewGame);
+newGameButton.addEventListener("click", () => startNewGame());
+tutorialButton.addEventListener("click", () => startNewGame(true));
 window.addEventListener("beforeunload", saveGame);
 
 function plantSeed(treeType = "maple") {
