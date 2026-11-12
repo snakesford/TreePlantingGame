@@ -1,5 +1,6 @@
 const tiles = document.querySelector(".hex-tiles");
 const tileElements = new Map();
+const purchaseTileElements = new Map();
 let pressedTreeTile = null;
 let tilePressOverlay = null;
 
@@ -605,6 +606,7 @@ function updateMoneyDisplay() {
             .forEach(button => { button.disabled = true; });
     }
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
+    updatePurchaseTiles();
     payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
     doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
 }
@@ -706,6 +708,7 @@ function resetBoard() {
     tiles.replaceChildren();
     releasePressedTreeTile();
     tileElements.clear();
+    purchaseTileElements.clear();
     plantedSeeds.length = 0;
     availableTiles.length = 0;
     boardTileCoordinates.length = 0;
@@ -968,7 +971,7 @@ function updateBoardViewBox() {
     let maxX = 460;
     let maxY = 410;
 
-    boardTileCoordinates.forEach(({ q, r }) => {
+    [...boardTileCoordinates, ...(normalMode ? getGreyTileCoordinates() : getPurchaseCandidates())].forEach(({ q, r }) => {
         const { x, y } = getTileCenter(q, r);
         minX = Math.min(minX, x - radius);
         minY = Math.min(minY, y - radius);
@@ -1510,31 +1513,89 @@ plantBirchButton.addEventListener("click", () => plantSeed("birch"));
 plantSpruceButton.addEventListener("click", () => plantSeed("spruce"));
 plantOakButton.addEventListener("click", () => plantSeed("oak"));
 
-buyTileButton.addEventListener("click", () => {
-    if (isBotTurn()) return;
-    if (moneyInCents < tileCostInCents) return;
-
-    const candidateTiles = new Map();
-    boardTileCoordinates.forEach(({ q, r }) => {
-        tileNeighborOffsets.forEach(([qOffset, rOffset]) => {
-            const candidate = { q: q + qOffset, r: r + rOffset };
-            const key = `${candidate.q},${candidate.r}`;
-            if (!boardTileKeys.has(key)) {
-                candidateTiles.set(key, candidate);
+// Six tiles along an edge means five steps from the center (91 spaces).
+function getGreyTileCoordinates() {
+    const coordinates = [];
+    for (let q = -5; q <= 5; q += 1) {
+        for (let r = -5; r <= 5; r += 1) {
+            if (Math.abs(q + r) <= 5 && !boardTileKeys.has(getTileKey(q, r))) {
+                coordinates.push({ q, r });
             }
+        }
+    }
+    return coordinates;
+}
+
+function getPurchaseCandidates() {
+    if (startingTileCount === 1) return [];
+    const owner = humanColor ?? selectedColor;
+    const candidates = new Map();
+    boardTileCoordinates.forEach(({ q, r }) => {
+        if (normalMode && getBoardTileColor(q, r) !== owner) return;
+        tileNeighborOffsets.forEach(([dq, dr]) => {
+            const candidate = { q: q + dq, r: r + dr };
+            const key = getTileKey(candidate.q, candidate.r);
+            const insideBoard = !normalMode || Math.max(Math.abs(candidate.q), Math.abs(candidate.r), Math.abs(candidate.q + candidate.r)) <= 5;
+            if (insideBoard && !boardTileKeys.has(key)) candidates.set(key, candidate);
         });
     });
-    const candidates = Array.from(candidateTiles.values());
-    if (candidates.length === 0) return;
+    return Array.from(candidates.values());
+}
 
-    const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
-    addBoardTile(q, r, true);
+function updatePurchaseTiles() {
+    purchaseTileElements.forEach(element => element.remove());
+    purchaseTileElements.clear();
+    if (gameStarted && normalMode) {
+        const disabled = isBotTurn() || moneyInCents < tileCostInCents;
+        const purchasableKeys = new Set(getPurchaseCandidates().map(({ q, r }) => getTileKey(q, r)));
+        getGreyTileCoordinates().forEach(({ q, r }) => {
+            const adjacent = purchasableKeys.has(getTileKey(q, r));
+            const { x, y } = getTileCenter(q, r);
+            const tile = document.createElementNS(svgNamespace, "polygon");
+            tile.setAttribute("class", "purchase-tile");
+            tile.setAttribute("points", Array.from({ length: 6 }, (_, index) => {
+                const angle = ((index * 60 - 90) * Math.PI) / 180;
+                return `${x + (radius - 1.2) * Math.cos(angle)},${y + (radius - 1.2) * Math.sin(angle)}`;
+            }).join(" "));
+            tile.setAttribute("role", "button");
+            tile.setAttribute("tabindex", "0");
+            const label = adjacent ? "Buy this hex for 25 leaves" : "Expand your territory to this hex to buy it for 25 leaves";
+            tile.setAttribute("aria-label", label);
+            tile.setAttribute("aria-disabled", String(disabled || !adjacent));
+            const title = document.createElementNS(svgNamespace, "title");
+            title.textContent = label;
+            tile.append(title);
+            tile.addEventListener("click", () => purchaseTile(q, r));
+            tile.addEventListener("keydown", event => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    purchaseTile(q, r);
+                }
+            });
+            purchaseTileElements.set(getTileKey(q, r), tile);
+            tiles.prepend(tile);
+        });
+    }
+    updateBoardViewBox();
+}
+
+function purchaseTile(q, r) {
+    if (!gameStarted || isBotTurn() || moneyInCents < tileCostInCents) return;
+    if (!getPurchaseCandidates().some(tile => tile.q === q && tile.r === r)) return;
+    if (!addBoardTile(q, r, true)) return;
     if (!normalMode && currentLevel > 2 && Math.random() < tileObstacleChance) {
         addTileObstacle(q, r);
     }
     moneyInCents -= tileCostInCents;
     updateMoneyDisplay();
     saveGame();
+}
+
+buyTileButton.addEventListener("click", () => {
+    const candidates = getPurchaseCandidates();
+    if (candidates.length === 0) return;
+    const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
+    purchaseTile(q, r);
 });
 
 function getSavedStartingTileCount(data) {

@@ -808,3 +808,22 @@ main {
 .turn-indicator[data-color="green"] { color: #32663c; }
 .turn-indicator[data-color="yellow"] { color: #806000; }
 .turn-indicator[data-color="red"] { color: #a13930; }
+
+.purchase-tile {
+    fill: #a8adb2;
+    stroke: #7b8289;
+    stroke-width: 1;
+    cursor: pointer;
+}
+
+.purchase-tile:hover,
+.purchase-tile:focus-visible {
+    fill: #c9cdd1;
+    stroke: #404a53;
+    stroke-width: 2;
+    outline: none;
+}
+
+.purchase-tile[aria-disabled="true"] {
+    cursor: not-allowed;
+}

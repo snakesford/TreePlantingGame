@@ -1175,3 +1175,49 @@ const afterReset = compostBot.storage.get('tree-planting-game-save');
 compostBot.run('while (window.botTimers.length) window.botTimers.shift()()');
 assert.equal(compostBot.storage.get('tree-planting-game-save'), afterReset);
 console.log('Bots plant, upgrade, compost, auto-pass, preserve human ownership on reload, block manual actions, and cancel on game reset.');
+
+for (const color of ['green', 'yellow', 'red']) {
+    const expansion = game();
+    expansion.run(`moneyInCents = 5000; startNewGame(false, '${color}', false, 'maple')`);
+    assert.ok(expansion.run('purchaseTileElements.size') > 0);
+    assert.equal(expansion.run(`getPurchaseCandidates().every(({q, r}) => !boardTileKeys.has(getTileKey(q, r)) &&
+        tileNeighborOffsets.some(([dq, dr]) => boardTileKeys.has(getTileKey(q + dq, r + dr)) && getBoardTileColor(q + dq, r + dr) === humanColor))`), true);
+    expansion.run('window.targetHex = getPurchaseCandidates()[0]; window.oldHex = purchaseTileElements.get(getTileKey(window.targetHex.q, window.targetHex.r)); window.oldHex.events.click()');
+    assert.equal(expansion.run('moneyInCents'), 2500);
+    assert.equal(expansion.run('getBoardTileColor(window.targetHex.q, window.targetHex.r)'), color);
+    assert.equal(expansion.run('purchaseTileElements.has(getTileKey(window.targetHex.q, window.targetHex.r))'), false);
+    assert.equal(expansion.run('getPlantableTiles().some(tile => tile.q === window.targetHex.q && tile.r === window.targetHex.r)'), true);
+    expansion.run('window.oldHex.events.click()');
+    assert.equal(expansion.run('moneyInCents'), 2500, 'Repeated clicks must not charge twice');
+    const restored = game(expansion.storage.get('tree-planting-game-save'));
+    assert.equal(restored.run('purchasedTileCoordinates.length'), 1);
+    assert.equal(restored.run('purchasedTileCoordinates[0].color'), color);
+    assert.ok(restored.run('purchaseTileElements.size') > 0);
+    expansion.run('{ const {q, r} = getPurchaseCandidates()[0]; purchaseTileElements.get(getTileKey(q, r)).events.keydown({ key: "Enter", preventDefault() {} }); }');
+    assert.equal(expansion.run('moneyInCents'), 0);
+    expansion.run('purchaseTileElements.values().next().value.events.click()');
+    assert.equal(expansion.run('purchasedTileCoordinates.length'), 2);
+    expansion.run('moneyInCents = 5000; collectPayout(); purchaseTileElements.values().next().value.events.click()');
+    assert.equal(expansion.run('purchasedTileCoordinates.length'), 2, 'Bot turns cannot purchase human tiles');
+    expansion.run('startNewGame(true)');
+    assert.equal(expansion.run('purchaseTileElements.size'), 0);
+}
+console.log('Grey expansion hexes purchase the selected space for 25 leaves, enforce adjacency and affordability, support keyboard input, and persist ownership.');
+
+for (const count of [1, 2, 3]) {
+    const largeBoard = game();
+    largeBoard.run(`playerCount = ${count}; moneyInCents = 5000; startNewGame(false, 'green', false, 'maple')`);
+    assert.equal(largeBoard.run('purchaseTileElements.size + boardTileKeys.size'), 91);
+    assert.equal(largeBoard.run('getGreyTileCoordinates().filter(tile => tile.q === 5).length'), 6);
+    assert.equal(largeBoard.run('getGreyTileCoordinates().filter(tile => tile.r === -5).length'), 6);
+    largeBoard.run('purchaseTileElements.get("5,0").events.click()');
+    assert.equal(largeBoard.run('moneyInCents'), 5000);
+    largeBoard.run('{ const {q, r} = getPurchaseCandidates()[0]; purchaseTile(q, r); }');
+    assert.equal(largeBoard.run('purchaseTileElements.size + boardTileKeys.size'), 91);
+    assert.equal(largeBoard.run('moneyInCents'), 2500);
+    const loaded = game(largeBoard.storage.get('tree-planting-game-save'));
+    assert.equal(loaded.run('purchaseTileElements.size + boardTileKeys.size'), 91);
+    largeBoard.run('collectPayout()');
+    assert.equal(largeBoard.run('purchaseTileElements.size + boardTileKeys.size'), 91);
+}
+console.log('All player counts share a fixed 91-space hexagon with six tiles per side; purchases and reloads retain its outline.');
