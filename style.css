@@ -339,6 +339,23 @@ main {
     stroke-width: 2;
 }
 
+.tile-body {
+    cursor: pointer;
+}
+
+.tile-body:active {
+    filter: brightness(0.72);
+}
+
+.tile-bevel,
+.tile-surface {
+    pointer-events: none;
+}
+
+.tile-surface {
+    fill: #69a373;
+}
+
 .upgradeable-seed {
     cursor: pointer;
 }

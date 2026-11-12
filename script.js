@@ -703,7 +703,31 @@ function addBoardTile(q, r, isPurchased = false) {
 
     tile.setAttribute("class", "hex-tile");
     tile.setAttribute("points", points);
-    tiles.prepend(tile);
+    const tileBody = document.createElementNS(svgNamespace, "g");
+    tileBody.setAttribute("class", "tile-body");
+    tileBody.append(tile);
+
+    const bevelPoints = (size, yOffset = 0) => Array.from({ length: 6 }, (_, index) => {
+        const angle = ((index * 60 - 90) * Math.PI) / 180;
+        return `${x + size * Math.cos(angle)},${y + yOffset + size * Math.sin(angle)}`;
+    });
+    const outerEdge = bevelPoints(radius - 1);
+    const topEdge = bevelPoints(radius - 5, -1);
+    const edgeColors = ["#9ac68a", "#679b60", "#365f38", "#284c30", "#305a37", "#78a76b"];
+
+    outerEdge.forEach((point, index) => {
+        const next = (index + 1) % 6;
+        const bevel = document.createElementNS(svgNamespace, "polygon");
+        bevel.setAttribute("points", [point, outerEdge[next], topEdge[next], topEdge[index]].join(" "));
+        bevel.setAttribute("fill", edgeColors[index]);
+        bevel.setAttribute("class", "tile-bevel");
+        tileBody.append(bevel);
+    });
+    const surface = document.createElementNS(svgNamespace, "polygon");
+    surface.setAttribute("class", "tile-surface");
+    surface.setAttribute("points", topEdge.join(" "));
+    tileBody.append(surface);
+    tiles.prepend(tileBody);
     availableTiles.push({ q, r, x, y });
     boardTileCoordinates.push({ q, r });
     boardTileKeys.add(key);
