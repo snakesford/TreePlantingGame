@@ -45,6 +45,30 @@ body {
     height: 32px;
 }
 
+.level-details {
+    flex: 0 0 100%;
+    color: #244c2c;
+    font: 0.9rem/1.5 sans-serif;
+}
+
+.level-details p {
+    margin: 0;
+}
+
+.level-objective {
+    font-weight: 600;
+}
+
+.level-progress-text {
+    color: #526653;
+}
+
+.level-notification {
+    padding-top: 6px;
+    color: #32663c;
+    font-weight: 700;
+}
+
 .next-level-button {
     flex-shrink: 0;
     margin-left: auto;

@@ -4,6 +4,12 @@ const levelLabel = document.querySelector(".level-label");
 const nextLevelButton = document.querySelector(".next-level-button");
 let currentLevel = 1;
 let levelOneCompleted = false;
+let levelTwoCompleted = false;
+const completedLevels = new Set();
+let matureTreesComposted = 0;
+const levelObjective = document.querySelector(".level-objective");
+const levelProgressText = document.querySelector(".level-progress-text");
+const levelNotification = document.querySelector(".level-notification");
 const moneyAmount = document.querySelector(".money-amount");
 const plantMapleButton = document.querySelector(".plant-maple-button");
 const plantBirchButton = document.querySelector(".plant-birch-button");
@@ -41,7 +47,7 @@ const tileCostInCents = 2500;
 const seedUpgradeCostInCents = 50;
 const dayCycleDuration = 60 * 1000;
 const saveStorageKey = "tree-planting-game-save";
-const saveVersion = 2;
+const saveVersion = 4;
 const standardFreeUpgradeIntervalInDays = 3;
 const growthStages = [
     { name: "Seed", image: "images/seed.png", earningInCents: 10 },
@@ -168,7 +174,9 @@ let previousFrameTime = performance.now();
 let clockSpeed = 1;
 let clockPaused = false;
 let gameStarted = false;
-let sideLength = 2;
+const levelTileCounts = [7, 7, 12, 15, 19, 19, 27, 36];
+let startingTileCount = levelTileCounts[0];
+let boardLayoutVersion = 2;
 const radius = 24;
 // Largest centered square inside a pointy-top hex, with room for its border.
 const maximumTileImageSize = 2 * (radius - 1.25) / (1 + 1 / Math.sqrt(3));
@@ -208,8 +216,12 @@ function saveGame() {
     const saveData = {
         version: saveVersion,
         currentLevel,
-        boardSideLength: sideLength,
+        boardTileCount: startingTileCount,
+        boardLayoutVersion,
         levelOneCompleted,
+        levelTwoCompleted,
+        completedLevels: Array.from(completedLevels),
+        matureTreesComposted,
         moneyInCents,
         elapsedCycleTime,
         clockSpeed,
@@ -277,12 +289,13 @@ function readSavedGame() {
         return;
     }
 
-    if (savedGameData.version === 1) {
-        // Convert the retired seventh stage to the final supported stage.
+    if (savedGameData.version < saveVersion) {
         savedGameData.seeds.forEach((seed) => {
+            // Retired growth stages become Mature without losing the tree.
             if (seed.stageIndex >= maximumGrowthStage) {
                 seed.stageIndex = maximumGrowthStage;
                 seed.upgradesInStage = 0;
+                seed.nextFreeUpgradeAtCycleTime = savedGameData.elapsedCycleTime;
             }
         });
         savedGameData.version = saveVersion;
@@ -297,10 +310,17 @@ function isValidSaveData(data) {
     if (
         !data ||
         typeof data !== "object" ||
-        ![1, saveVersion].includes(data.version) ||
-        (data.currentLevel !== undefined && ![1, 2].includes(data.currentLevel)) ||
+        ![1, 2, 3, saveVersion].includes(data.version) ||
+        (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
+        (data.boardLayoutVersion !== undefined && ![1, 2].includes(data.boardLayoutVersion)) ||
+        (data.boardTileCount !== undefined && ![7, 12, 15, 19, 27, 36, 91].includes(data.boardTileCount)) ||
         (data.boardSideLength !== undefined && ![2, 6].includes(data.boardSideLength)) ||
         (data.levelOneCompleted !== undefined && typeof data.levelOneCompleted !== "boolean") ||
+        (data.levelTwoCompleted !== undefined && typeof data.levelTwoCompleted !== "boolean") ||
+        (data.completedLevels !== undefined && (!Array.isArray(data.completedLevels) ||
+            data.completedLevels.some((level) => !Number.isInteger(level) || level < 1 || level > (data.currentLevel ?? 1)))) ||
+        (data.matureTreesComposted !== undefined &&
+            (!Number.isSafeInteger(data.matureTreesComposted) || data.matureTreesComposted < 0)) ||
         !Number.isFinite(data.moneyInCents) ||
         data.moneyInCents < 0 ||
         !Number.isFinite(data.elapsedCycleTime) ||
@@ -319,7 +339,7 @@ function isValidSaveData(data) {
     );
     const additionalTiles = data.additionalTiles ?? [];
     const obstacleTiles = data.obstacles ?? [];
-    const startingTiles = getStartingCoordinates(data.boardSideLength ?? 6);
+    const startingTiles = getStartingCoordinates(getSavedStartingTileCount(data), data.boardLayoutVersion ?? 1);
     const knownTileKeys = new Set(startingTiles.map(({ q, r }) => getTileKey(q, r)));
     const tilePositions = startingTiles.map(({ q, r }) => getTileCenter(q, r));
     for (const tile of additionalTiles) {
@@ -368,7 +388,7 @@ function isValidSaveData(data) {
             (seed.treeType !== undefined && !Object.hasOwn(treeGrowthStages, seed.treeType)) ||
             !Number.isInteger(seed.stageIndex) ||
             seed.stageIndex < 0 ||
-            seed.stageIndex > (data.version === 1 ? 6 : maximumGrowthStage) ||
+            seed.stageIndex > ([1, 3].includes(data.version) ? 6 : maximumGrowthStage) ||
             !Number.isInteger(seed.upgradesInStage) ||
             seed.upgradesInStage < 0 ||
             seed.upgradesInStage >= getUpgradesPerStage(seed) ||
@@ -412,25 +432,76 @@ function updateMoneyDisplay() {
     buyTileButton.disabled = moneyInCents < tileCostInCents;
 }
 
+const levelDefinitions = [
+    { name: "First Sprouts", objective: "Grow 2 sprouts or earn 2 leaves per payout.", target: 1 },
+    { name: "Growing Grove", objective: "Grow 3 trees to Seedling or higher.", stage: 3, target: 3, unit: "seedlings or higher" },
+    { name: "Forest Expansion", objective: "Have 8 living trees planted.", target: 8, unit: "living trees" },
+    { name: "Stronger Roots", objective: "Grow 3 trees to Sapling or higher.", stage: 4, target: 3, unit: "saplings or higher" },
+    { name: "Profitable Forest", objective: "Reach 10 leaves of total income per payout.", target: 1000 },
+    { name: "Established Woodland", objective: "Have 5 Mature trees or higher.", stage: 5, target: 5, unit: "mature trees or higher" },
+    { name: "Forest Diversity", objective: "Own 3 different species with at least 2 living trees each.", target: 3, unit: "species with 2+ trees" },
+    { name: "Forest Renewal", objective: "Compost 2 Mature trees during this level.", target: 2, unit: "mature trees composted" },
+];
+
 function updateLevelProgress() {
-    const sprouts = plantedSeeds.filter((seed) => seed.stageIndex >= 2).length;
+    const definition = levelDefinitions[currentLevel - 1];
     const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
-    if (currentLevel === 1 && (sprouts >= 2 || income >= 200)) {
-        levelOneCompleted = true;
+    let count = plantedSeeds.length;
+    let progressText;
+    if (currentLevel === 1) {
+        const sprouts = plantedSeeds.filter((seed) => seed.stageIndex >= 2).length;
+        count = Math.max(sprouts / 2, income / 200);
+        progressText = `${sprouts}/2 sprouts or higher · ${(income / 100).toFixed(2)}/2 leaves per payout`;
+    } else if (currentLevel === 5) {
+        count = income;
+        progressText = `${(income / 100).toFixed(2)}/10 leaves per payout`;
+    } else if (currentLevel === 7) {
+        const species = new Map();
+        plantedSeeds.forEach((seed) => {
+            species.set(seed.treeType, (species.get(seed.treeType) ?? 0) + 1);
+        });
+        count = Array.from(species.values()).filter((total) => total >= 2).length;
+    } else if (currentLevel === 8) {
+        count = matureTreesComposted;
+    } else if (definition.stage !== undefined) {
+        count = plantedSeeds.filter((seed) => seed.stageIndex >= definition.stage).length;
     }
-    levelProgress.value = currentLevel === 1
-        ? (levelOneCompleted ? 100 : Math.min(100, Math.max(sprouts / 2, income / 200) * 100))
-        : 0;
+    if (count >= definition.target) {
+        completedLevels.add(currentLevel);
+        if (currentLevel === 1) levelOneCompleted = true;
+        if (currentLevel === 2) levelTwoCompleted = true;
+    }
+    const complete = isCurrentLevelComplete();
+    levelProgress.value = complete ? 100 : Math.min(100, count / definition.target * 100);
     levelProgress.setAttribute("aria-label", `Level ${currentLevel} progress`);
+    const details = progressText ?? `${count}/${definition.target} ${definition.unit}`;
+    levelProgress.setAttribute("aria-valuetext", complete ? `Level complete. ${details}` : details);
     levelLabel.textContent = `Level ${currentLevel}`;
-    nextLevelButton.hidden = currentLevel !== 1 || !levelOneCompleted;
+    levelObjective.textContent = `${definition.name} — ${definition.objective}`;
+    levelProgressText.textContent = details;
+    const notification = complete
+        ? (currentLevel === 8 ? "Level Complete — All 8 levels completed!" : "Level Complete — Ready for the next level!")
+        : "";
+    // Only change the live region when the message changes, not on every save.
+    if (levelNotification.textContent !== notification) levelNotification.textContent = notification;
+    levelNotification.hidden = !complete;
+    nextLevelButton.hidden = !complete || currentLevel === levelDefinitions.length;
+}
+
+function isCurrentLevelComplete() {
+    return completedLevels.has(currentLevel) ||
+        (currentLevel === 1 && levelOneCompleted) ||
+        (currentLevel === 2 && levelTwoCompleted);
 }
 
 function advanceToNextLevel() {
-    if (!gameStarted || currentLevel !== 1 || !levelOneCompleted) return;
+    if (!gameStarted || !isCurrentLevelComplete() || currentLevel >= levelDefinitions.length) return;
 
-    currentLevel = 2;
-    sideLength = 6;
+    completedLevels.add(currentLevel);
+    currentLevel += 1;
+    matureTreesComposted = 0;
+    startingTileCount = levelTileCounts[currentLevel - 1];
+    boardLayoutVersion = [3, 4, 7].includes(currentLevel) ? 1 : 2;
     resetBoard();
     spawnRandomTileObstacles();
     updateMoneyDisplay();
@@ -591,6 +662,13 @@ function clearTileObstacle(q, r) {
 }
 
 function spawnRandomTileObstacles() {
+    if (currentLevel === 1) return;
+    if (currentLevel === 2) {
+        if (tileObstacles.size > 0 || availableTiles.length === 0) return;
+        const { q, r } = availableTiles[Math.floor(Math.random() * availableTiles.length)];
+        addTileObstacle(q, r);
+        return;
+    }
     boardTileCoordinates.forEach(({ q, r }) => {
         if (tileObstacles.has(getTileKey(q, r))) return;
         if (Math.random() < tileObstacleChance) {
@@ -701,6 +779,9 @@ function compostTree(seedState) {
     const index = plantedSeeds.indexOf(seedState);
     if (index < 0) return;
 
+    if (currentLevel === 8 && seedState.stageIndex === maximumGrowthStage) {
+        matureTreesComposted += 1;
+    }
     moneyInCents += getCompostReward(seedState);
     closeSeedDialog(seedState);
     seedState.image.remove();
@@ -887,10 +968,16 @@ function continueGame() {
 
     moneyInCents = savedGameData.moneyInCents;
     currentLevel = savedGameData.currentLevel ?? 1;
-    // Older saves used six tiles per side; retain their trees and purchased tiles.
-    sideLength = savedGameData.boardSideLength ?? 6;
+    // Preserve the layout of existing saves, including older full hexagon boards.
+    startingTileCount = getSavedStartingTileCount(savedGameData);
+    boardLayoutVersion = savedGameData.boardLayoutVersion ?? 1;
     resetBoard();
     levelOneCompleted = savedGameData.levelOneCompleted ?? false;
+    levelTwoCompleted = savedGameData.levelTwoCompleted ?? false;
+    matureTreesComposted = savedGameData.matureTreesComposted ?? 0;
+    completedLevels.clear();
+    for (let level = 1; level < currentLevel; level += 1) completedLevels.add(level);
+    (savedGameData.completedLevels ?? []).forEach((level) => completedLevels.add(level));
     elapsedCycleTime = savedGameData.elapsedCycleTime;
     clockSpeed = savedGameData.clockSpeed;
     clockSpeedButton.setAttribute("aria-pressed", String(clockSpeed === 3));
@@ -920,9 +1007,13 @@ function startNewGame() {
 
     savedGameData = null;
     currentLevel = 1;
-    sideLength = 2;
+    startingTileCount = levelTileCounts[0];
+    boardLayoutVersion = 2;
     resetBoard();
     levelOneCompleted = false;
+    levelTwoCompleted = false;
+    matureTreesComposted = 0;
+    completedLevels.clear();
     hasStoredSave = false;
     moneyInCents = moneyInCents;
     elapsedCycleTime = 0;
@@ -1004,7 +1095,7 @@ buyTileButton.addEventListener("click", () => {
 
     const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
     addBoardTile(q, r, true);
-    if (Math.random() < tileObstacleChance) {
+    if (currentLevel > 2 && Math.random() < tileObstacleChance) {
         addTileObstacle(q, r);
     }
     moneyInCents -= tileCostInCents;
@@ -1012,20 +1103,45 @@ buyTileButton.addEventListener("click", () => {
     saveGame();
 });
 
-function getStartingCoordinates(length) {
-    const coordinates = [];
-    for (let q = -(length - 1); q < length; q += 1) {
-        for (let r = -(length - 1); r < length; r += 1) {
-            if (Math.abs(q + r) >= length) continue;
+function getSavedStartingTileCount(data) {
+    if (data.boardTileCount !== undefined) return data.boardTileCount;
+    const length = data.boardSideLength ?? 6;
+    return 1 + 3 * length * (length - 1);
+}
 
+function getStartingCoordinates(count, layoutVersion = boardLayoutVersion) {
+    let extent = 0;
+    while (1 + 3 * extent * (extent + 1) < count) extent += 1;
+    const coordinates = [];
+    for (let q = -extent; q <= extent; q += 1) {
+        for (let r = -extent; r <= extent; r += 1) {
+            if (Math.abs(q + r) > extent) continue;
             coordinates.push({ q, r });
         }
     }
-    return coordinates;
+    // Fill from the center outward so partial outer rings remain connected.
+    coordinates.sort((a, b) => {
+        const ringA = Math.max(Math.abs(a.q), Math.abs(a.r), Math.abs(a.q + a.r));
+        const ringB = Math.max(Math.abs(b.q), Math.abs(b.r), Math.abs(b.q + b.r));
+        return ringA - ringB ||
+            Math.atan2(a.r * 1.5, Math.sqrt(3) * (a.q + a.r / 2)) -
+            Math.atan2(b.r * 1.5, Math.sqrt(3) * (b.q + b.r / 2));
+    });
+    if (layoutVersion === 1) return coordinates.slice(0, count);
+
+    const inner = coordinates.filter(({ q, r }) =>
+        Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) < extent);
+    const outer = coordinates.slice(inner.length);
+    const remaining = count - inner.length;
+    // Spread a partial ring around all six sides instead of filling one side first.
+    for (let index = 0; index < remaining; index += 1) {
+        inner.push(outer[Math.floor(index * outer.length / remaining)]);
+    }
+    return inner;
 }
 
 function createStartingBoard() {
-    getStartingCoordinates(sideLength).forEach(({ q, r }) => addBoardTile(q, r));
+    getStartingCoordinates(startingTileCount).forEach(({ q, r }) => addBoardTile(q, r));
 }
 
 createStartingBoard();

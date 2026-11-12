@@ -119,7 +119,7 @@ const birch = game();
 birch.elements.get('.plant-birch-button').events.click();
 assert.equal(birch.run('plantedSeeds[0].treeType'), 'birch');
 assert.equal(birch.run('moneyInCents'), 9999899);
-const imageNames = ['seed', 'germination', 'sprout', 'seedling', 'sapling', 'adult'];
+const imageNames = ['seed', 'germination', 'sprout', 'seedling', 'sapling', 'adult', 'adult'];
 for (const [stage, income, cost, days] of [
     [0, 30, 100, 1], [1, 50, 200, 2], [2, 75, 300, 2],
     [3, 100, 500, 3], [4, 125, 700, 3], [5, 150, 0, 0],
@@ -251,11 +251,12 @@ for (const treeType of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
     assert.equal(migrated.elements.get('.seed-upgrade-cost').textContent, 'Grown');
     assert.ok(migrated.elements.get('#seed-dialog-title').textContent.includes('Mature'));
     const before = migrated.run('moneyInCents');
+    const cost = migrated.run('getSeedUpgradeCost(plantedSeeds[0])');
     migrated.run('upgradeSeed(plantedSeeds[0]); elapsedCycleTime += 100000000; applyFreeSeedUpgrades()');
-    assert.equal(migrated.run('moneyInCents'), before);
+    assert.equal(migrated.run('moneyInCents'), before - cost);
     assert.equal(migrated.run('plantedSeeds[0].stageIndex'), 5);
     const updatedSave = JSON.parse(migrated.storage.get('tree-planting-game-save'));
-    assert.equal(updatedSave.version, 2);
+    assert.equal(updatedSave.version, 4);
     assert.equal(updatedSave.seeds[0].stageIndex, 5);
     assert.equal(migrated.run('getSeedUpgradeCost(plantedSeeds[0])'), 0);
     assert.equal(migrated.run('getFreeUpgradeInterval(plantedSeeds[0])'), 0);
@@ -366,8 +367,9 @@ levels.elements.get('.next-level-button').events.click();
 assert.equal(levels.run('currentLevel'), 2);
 assert.equal(levels.run('plantedSeeds.length'), 0);
 assert.equal(levels.run('purchasedTileCoordinates.length'), 0);
-assert.equal(levels.run('boardTileCoordinates.length'), 91);
-assert.equal(levels.run('availableTiles.length + tileObstacles.size'), 91);
+assert.equal(levels.run('boardTileCoordinates.length'), 7);
+assert.equal(levels.run('availableTiles.length'), 6);
+assert.equal(levels.run('tileObstacles.size'), 1);
 assert.equal(levels.run('moneyInCents'), levelBalance);
 assert.equal(levels.elements.get('.seed-dialog').open, false);
 assert.equal(levels.elements.get('.level-label').textContent, 'Level 2');
@@ -413,5 +415,220 @@ assert.equal(clearedSave.run('availableTiles.length'), 8);
 assert.equal(JSON.parse(clearedSave.storage.get('tree-planting-game-save')).obstacles.length, 0);
 obstacleFree.run('levelOneCompleted = true; advanceToNextLevel()');
 assert.equal(obstacleFree.run('currentLevel'), 2);
-assert.equal(obstacleFree.run('tileObstacles.size'), 91);
+assert.equal(obstacleFree.run('tileObstacles.size'), 1);
 console.log('Level 1 obstacles disabled for starting, purchased, and saved tiles; level 2 obstacles retained.');
+
+const levelTwoObstacleSave = obstacleFree.storage.get('tree-planting-game-save');
+const loadedObstacle = game(levelTwoObstacleSave);
+loadedObstacle.run('continueGame()');
+assert.equal(loadedObstacle.run('boardTileCoordinates.length'), 7);
+assert.equal(loadedObstacle.run('tileObstacles.size'), 1);
+assert.equal(JSON.stringify(loadedObstacle.run('Array.from(tileObstacles.keys())')),
+    JSON.stringify(obstacleFree.run('Array.from(tileObstacles.keys())')));
+loadedObstacle.elements.get('.buy-tile-button').events.click();
+assert.equal(loadedObstacle.run('tileObstacles.size'), 1);
+loadedObstacle.run('const obstacle = Array.from(tileObstacles.values())[0]; clearTileObstacle(obstacle.q, obstacle.r)');
+const clearedLevelTwo = game(loadedObstacle.storage.get('tree-planting-game-save'));
+clearedLevelTwo.run('continueGame()');
+assert.equal(clearedLevelTwo.run('tileObstacles.size'), 0);
+console.log('Level 2 starts with seven tiles and one obstacle, preserves its location, and saves obstacle removal.');
+
+const seedlingsLevel = game();
+seedlingsLevel.run('startGame(); levelOneCompleted = true; advanceToNextLevel(); for (let i = 0; i < 3; i++) plantSeed("birch"); for (const seed of plantedSeeds) { for (let i = 0; i < 8; i++) upgradeSeed(seed); }');
+assert.equal(seedlingsLevel.elements.get('.next-level-button').hidden, true);
+assert.equal(seedlingsLevel.elements.get('.level-progress').value, 0);
+seedlingsLevel.elements.get('.next-level-button').events.click();
+assert.equal(seedlingsLevel.run('currentLevel'), 2);
+seedlingsLevel.run('for (let i = 0; i < 4; i++) upgradeSeed(plantedSeeds[0]); for (let i = 0; i < 4; i++) upgradeSeed(plantedSeeds[1])');
+assert.equal(seedlingsLevel.elements.get('.next-level-button').hidden, true);
+assert.ok(Math.abs(seedlingsLevel.elements.get('.level-progress').value - 200 / 3) < 1e-10);
+seedlingsLevel.run('for (let i = 0; i < 4; i++) upgradeSeed(plantedSeeds[2])');
+assert.equal(seedlingsLevel.elements.get('.next-level-button').hidden, false);
+assert.equal(seedlingsLevel.elements.get('.level-progress').value, 100);
+const loadedSeedlings = game(seedlingsLevel.storage.get('tree-planting-game-save'));
+loadedSeedlings.run('continueGame()');
+assert.equal(loadedSeedlings.elements.get('.next-level-button').hidden, false);
+loadedSeedlings.elements.get('.next-level-button').events.click();
+assert.equal(loadedSeedlings.run('currentLevel'), 3);
+assert.equal(loadedSeedlings.run('plantedSeeds.length'), 0);
+assert.equal(loadedSeedlings.elements.get('.level-label').textContent, 'Level 3');
+assert.equal(loadedSeedlings.elements.get('.next-level-button').hidden, true);
+const levelThree = game(loadedSeedlings.storage.get('tree-planting-game-save'));
+levelThree.run('continueGame()');
+assert.equal(levelThree.run('currentLevel'), 3);
+const freeSeedlings = game();
+freeSeedlings.run('startGame(); levelOneCompleted = true; advanceToNextLevel(); for (let i = 0; i < 3; i++) plantSeed("birch"); elapsedCycleTime = 1200000; applyFreeSeedUpgrades()');
+assert.equal(freeSeedlings.elements.get('.next-level-button').hidden, false);
+console.log('Level 2 requires three seedlings, tracks progress, unlocks with free growth, and advances and saves level 3.');
+
+// Play through every level in order; changes below exercise the real event paths.
+const campaign = game();
+campaign.run('startGame(); Math.random = () => 0.99');
+function expectIncomplete(level) {
+    assert.equal(campaign.run('currentLevel'), level);
+    assert.equal(campaign.elements.get('.next-level-button').hidden, true);
+    assert.equal(campaign.elements.get('.level-notification').hidden, true);
+    campaign.elements.get('.next-level-button').events.click();
+    assert.equal(campaign.run('currentLevel'), level);
+}
+function completeAndAdvance(level) {
+    assert.equal(campaign.run('currentLevel'), level);
+    assert.equal(campaign.elements.get('.level-progress').value, 100);
+    assert.match(campaign.elements.get('.level-notification').textContent, /Level Complete/);
+    assert.equal(campaign.elements.get('.level-notification').hidden, false);
+    const resumed = game(campaign.storage.get('tree-planting-game-save'));
+    resumed.run('continueGame()');
+    assert.equal(resumed.run('currentLevel'), level);
+    assert.match(resumed.elements.get('.level-notification').textContent, /Level Complete/);
+    assert.equal(resumed.elements.get('.next-level-button').hidden, level === 8);
+    campaign.elements.get('.next-level-button').events.click();
+    assert.equal(campaign.run('currentLevel'), Math.min(level + 1, 8));
+    if (level < 8) {
+        assert.equal(campaign.run('plantedSeeds.length'), 0);
+        assert.equal(campaign.elements.get('.level-notification').hidden, true);
+    }
+}
+expectIncomplete(1);
+campaign.run('for (let i = 0; i < 5; i++) plantSeed()');
+completeAndAdvance(1);
+campaign.run('for (let i = 0; i < 3; i++) plantSeed("birch"); elapsedCycleTime += 1200000; applyFreeSeedUpgrades()');
+completeAndAdvance(2);
+assert.match(campaign.elements.get('.level-objective').textContent, /Forest Expansion/);
+assert.equal(campaign.run('boardTileCoordinates.length'), 12);
+assert.equal(campaign.run('boardLayoutVersion'), 1);
+assert.equal(JSON.stringify(campaign.run('boardTileCoordinates')),
+    JSON.stringify(campaign.run('getStartingCoordinates(12, 1)')));
+campaign.run('for (let i = 0; i < 7; i++) plantSeed()');
+expectIncomplete(3);
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '7/8 living trees');
+campaign.run('compostTree(plantedSeeds[0])');
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '6/8 living trees');
+campaign.run('plantSeed(); plantSeed()');
+completeAndAdvance(3);
+assert.match(campaign.elements.get('.level-objective').textContent, /Stronger Roots/);
+assert.equal(campaign.run('boardTileCoordinates.length'), 15);
+assert.equal(campaign.run('boardLayoutVersion'), 1);
+assert.equal(JSON.stringify(campaign.run('boardTileCoordinates')),
+    JSON.stringify(campaign.run('getStartingCoordinates(15, 1)')));
+campaign.run('for (let i = 0; i < 3; i++) plantSeed(); for (let j = 0; j < 3; j++) { for (let i = 0; i < (j === 2 ? 15 : 16); i++) upgradeSeed(plantedSeeds[j]); }');
+expectIncomplete(4);
+campaign.run('upgradeSeed(plantedSeeds[2])');
+completeAndAdvance(4);
+assert.match(campaign.elements.get('.level-objective').textContent, /Profitable Forest/);
+for (let i = 0; i < 6; i++) campaign.elements.get('.buy-tile-button').events.click();
+campaign.run('for (let i = 0; i < 24; i++) plantSeed()');
+expectIncomplete(5);
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '9.60/10 leaves per payout');
+campaign.run('compostTree(plantedSeeds[0])');
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '9.20/10 leaves per payout');
+campaign.run('plantSeed(); plantSeed()');
+completeAndAdvance(5);
+assert.match(campaign.elements.get('.level-objective').textContent, /Established Woodland/);
+campaign.run('for (let i = 0; i < 5; i++) plantSeed(); for (let j = 0; j < 5; j++) { for (let i = 0; i < (j === 4 ? 19 : 24); i++) upgradeSeed(plantedSeeds[j]); }');
+expectIncomplete(6);
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '4/5 mature trees or higher');
+campaign.run('upgradeSeed(plantedSeeds[4])');
+completeAndAdvance(6);
+assert.match(campaign.elements.get('.level-objective').textContent, /Forest Diversity/);
+assert.equal(campaign.run('boardTileCoordinates.length'), 27);
+assert.equal(campaign.run('boardLayoutVersion'), 1);
+assert.equal(JSON.stringify(campaign.run('boardTileCoordinates')),
+    JSON.stringify(campaign.run('getStartingCoordinates(27, 1)')));
+campaign.run('plantSeed("maple"); plantSeed("maple"); plantSeed("birch"); plantSeed("birch"); plantSeed("spruce"); plantSeed("oak")');
+expectIncomplete(7);
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '2/3 species with 2+ trees');
+campaign.run('compostTree(plantedSeeds[0])');
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '1/3 species with 2+ trees');
+campaign.run('plantSeed("maple"); plantSeed("spruce")');
+completeAndAdvance(7);
+assert.match(campaign.elements.get('.level-objective').textContent, /Forest Renewal/);
+assert.equal(campaign.run('matureTreesComposted'), 0);
+campaign.run('plantSeed(); compostTree(plantedSeeds[0])');
+assert.equal(campaign.run('matureTreesComposted'), 0);
+campaign.run('plantSeed(); plantSeed(); for (const seed of plantedSeeds) { for (let i = 0; i < 20; i++) upgradeSeed(seed); }');
+expectIncomplete(8);
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '0/2 mature trees composted');
+const firstCompostedTree = campaign.run('plantedSeeds[0]');
+campaign.run('compostTree(plantedSeeds[0])');
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '1/2 mature trees composted');
+assert.equal(campaign.elements.get('.level-progress').value, 50);
+firstCompostedTree.image.events.contextmenu({ preventDefault() {}, stopPropagation() {} });
+assert.equal(campaign.run('matureTreesComposted'), 1);
+const partialCompost = game(campaign.storage.get('tree-planting-game-save'));
+partialCompost.run('continueGame()');
+assert.equal(partialCompost.run('matureTreesComposted'), 1);
+assert.equal(partialCompost.elements.get('.level-progress').value, 50);
+campaign.run('compostTree(plantedSeeds[0])');
+completeAndAdvance(8);
+assert.equal(campaign.run('plantedSeeds.length'), 0);
+assert.match(campaign.elements.get('.level-notification').textContent, /All 8 levels completed/);
+assert.equal(campaign.elements.get('.level-progress-text').textContent, '2/2 mature trees composted');
+
+for (const version of [1, 2, 3]) {
+    const oldGrowthSave = JSON.parse(saved);
+    oldGrowthSave.version = version;
+    oldGrowthSave.seeds = [{ ...oldGrowthSave.seeds[0], stageIndex: version === 2 ? 5 : 6, upgradesInStage: 2 }];
+    const capped = game(JSON.stringify(oldGrowthSave));
+    capped.run('continueGame(); openSeedDialog(plantedSeeds[0])');
+    assert.equal(capped.run('plantedSeeds[0].stageIndex'), 5);
+    assert.equal(capped.run('plantedSeeds[0].upgradesInStage'), 0);
+    assert.equal(capped.elements.get('.seed-upgrade-cost').textContent, 'Grown');
+    const before = capped.run('moneyInCents');
+    capped.run('upgradeSeed(plantedSeeds[0]); elapsedCycleTime += 100000000; applyFreeSeedUpgrades()');
+    assert.equal(capped.run('plantedSeeds[0].stageIndex'), 5);
+    assert.equal(capped.run('moneyInCents'), before);
+    assert.equal(capped.run('matureTreesComposted'), 0);
+}
+const earlyCompost = game();
+earlyCompost.run('startGame(); plantSeed(); for (let i = 0; i < 20; i++) upgradeSeed(plantedSeeds[0]); compostTree(plantedSeeds[0])');
+assert.equal(earlyCompost.run('matureTreesComposted'), 0);
+console.log('All eight sequential objectives, compost thresholds, partial save/load, duplicate protection, and retired-stage migration passed.');
+
+for (const [index, count] of [7, 7, 12, 15, 19, 19, 27, 36].entries()) {
+    const board = game();
+    board.run(`currentLevel = ${index + 1}; startingTileCount = levelTileCounts[currentLevel - 1]; resetBoard(); startGame()`);
+    assert.equal(board.run('boardTileCoordinates.length'), count);
+    assert.equal(board.run('boardTileKeys.size'), count);
+    assert.equal(board.run('availableTiles.length'), count);
+    assert.equal(board.run(`boardTileCoordinates.every(({ q, r }) =>
+        (q === 0 && r === 0) || tileNeighborOffsets.some(([dq, dr]) =>
+            boardTileKeys.has(getTileKey(q + dq, r + dr))))`), true);
+    board.run('plantSeed()');
+    board.elements.get('.buy-tile-button').events.click();
+    const restoredBoard = game(board.storage.get('tree-planting-game-save'));
+    restoredBoard.run('continueGame()');
+    assert.equal(restoredBoard.run('boardTileCoordinates.length'), count + 1);
+    assert.equal(restoredBoard.run('plantedSeeds.length'), 1);
+    assert.equal(restoredBoard.run('purchasedTileCoordinates.length'), 1);
+}
+const oldLargeBoard = game();
+oldLargeBoard.run('currentLevel = 3; startingTileCount = 91; resetBoard(); startGame(); plantSeed()');
+const oldBoardSave = JSON.parse(oldLargeBoard.storage.get('tree-planting-game-save'));
+delete oldBoardSave.boardTileCount;
+oldBoardSave.boardSideLength = 6;
+const oldBoardRestored = game(JSON.stringify(oldBoardSave));
+oldBoardRestored.run('continueGame()');
+assert.equal(oldBoardRestored.run('boardTileCoordinates.length'), 91);
+assert.equal(oldBoardRestored.run('plantedSeeds.length'), 1);
+console.log('Exact level tile counts, connected layouts, purchased-tile save/load, and legacy board preservation passed.');
+
+for (const count of [7, 12, 15, 19, 27, 36]) {
+    const layout = game();
+    const coordinates = layout.run(`getStartingCoordinates(${count})`);
+    const center = coordinates.reduce((sum, { q, r }) => ({
+        x: sum.x + Math.sqrt(3) * (q + r / 2), y: sum.y + 1.5 * r,
+    }), { x: 0, y: 0 });
+    assert.ok(Math.hypot(center.x / count, center.y / count) < 0.2,
+        `${count}-tile board should stay centered within a fifth of a tile radius`);
+}
+const previousLayout = game();
+previousLayout.run('currentLevel = 4; startingTileCount = 15; boardLayoutVersion = 1; resetBoard(); startGame(); plantSeed()');
+const previousLayoutSave = JSON.parse(previousLayout.storage.get('tree-planting-game-save'));
+delete previousLayoutSave.boardLayoutVersion;
+const restoredLayout = game(JSON.stringify(previousLayoutSave));
+restoredLayout.run('continueGame()');
+assert.equal(restoredLayout.run('boardTileCoordinates.length'), 15);
+assert.equal(restoredLayout.run('plantedSeeds.length'), 1);
+assert.equal(JSON.stringify(restoredLayout.run('boardTileCoordinates')),
+    JSON.stringify(previousLayout.run('boardTileCoordinates')));
+console.log('Partial rings remain centered and old layouts load without moving trees.');
