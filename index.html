@@ -27,31 +27,14 @@
       <output class="money-amount" aria-live="polite">5</output>
       <output class="compost-reward" role="status" hidden></output>
     </div>
-    <aside class="daylight-clock" aria-label="Day and night cycle">
-      <div class="tutorial-plant-prompt tutorial-clock-prompt" hidden>
-        <p>You get paid at dawn and dusk! Your trees earn leaves each time the clock reaches sunrise or sunset.</p>
-        <button class="tutorial-clock-next" type="button">Got it — let’s plant!</button>
+    <aside class="payout-controls" aria-label="Tree income">
+      <div class="tutorial-plant-prompt tutorial-done-prompt" hidden>
+        <p>Click Done to collect leaves from all your trees. Upgrade trees to earn more with every click!</p>
+        <button class="tutorial-done-next" type="button">Got it — let’s plant!</button>
       </div>
-      <span class="daylight-label">Daylight</span>
-      <span class="daylight-status" aria-live="polite">Day</span>
-      <span class="clock-face" role="img"
-        aria-label="One-minute day and night cycle with payouts at sunrise and sunset.">
-        <span class="clock-dial" aria-hidden="true">
-          <span class="clock-tick sunrise-earning"></span>
-          <span class="clock-tick sunset-earning"></span>
-        </span>
-        <span class="clock-markers" aria-hidden="true">
-          <span class="clock-marker sun-marker">☾</span>
-          <span class="clock-marker moon-marker">☀</span>
-        </span>
-        <span class="clock-current-time-tick" aria-hidden="true"></span>
-      </span>
-      <div class="clock-controls" aria-label="Daylight clock controls">
-        <button class="clock-control pause-clock" type="button" aria-label="Pause daylight clock"
-          aria-pressed="false" title="Pause">⏸</button>
-        <button class="clock-control speed-toggle" type="button" aria-label="Triple daylight clock speed"
-          aria-pressed="false" title="Triple speed">▶▶</button>
-      </div>
+      <button class="done-button" type="button" disabled>Done</button>
+      <span class="payout-amount">0.00 leaves per click</span>
+      <output class="payout-status" role="status" aria-live="polite"></output>
     </aside>
   </header>
   <output class="save-status" role="status" aria-live="polite"></output>
@@ -105,7 +88,7 @@
       <div class="seed-preview">
         <img src="images/seed.png" alt="Seed" />
       </div>
-      <p class="sprout-description">Click to upgrade. Free growth every 3 days.</p>
+      <p class="sprout-description">Click the tree to upgrade. Click Done to collect leaves.</p>
     </div>
     <div class="seed-upgrade-progress">
       <div class="seed-progress-track">

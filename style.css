@@ -181,144 +181,31 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
-.daylight-clock {
+.payout-controls {
     display: grid;
-    grid-template-columns: auto 88px auto;
-    grid-template-rows: auto auto;
-    align-items: center;
-    column-gap: 14px;
-    padding: 12px 14px 12px 18px;
-    border-radius: 16px;
-    background: #fff;
-    color: #32663c;
-    font-family: sans-serif;
-}
-
-.daylight-label {
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.daylight-status {
-    font-size: 0.8rem;
-    color: #6d786e;
-}
-
-.clock-face {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    position: relative;
-    width: 88px;
-    height: 88px;
-    border: 2px solid #d6e5bb;
-    border-radius: 50%;
-}
-
-.clock-controls {
-    grid-column: 3;
-    grid-row: 1 / span 2;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    justify-items: end;
     gap: 6px;
+    color: #32663c;
+    font: 0.85rem/1.4 sans-serif;
+    margin-left: auto;
 }
 
-.clock-control {
-    min-width: 36px;
-    height: 36px;
-    padding: 0 8px;
-    border: 1px solid #d6e5bb;
-    border-radius: 6px;
-    background: #f4f6f1;
-    color: #32663c;
-    font: 600 0.9rem/1 sans-serif;
+.done-button {
+    min-width: 110px;
+    min-height: 48px;
+    padding: 12px 24px;
+    border: 2px solid #205627;
+    border-radius: 12px;
+    background: #327b35;
+    color: white;
+    font: 700 1.1rem/1.3 sans-serif;
     cursor: pointer;
 }
 
-.clock-control:hover {
-    background: #e4ecd9;
-}
-
-.clock-control[aria-pressed="true"] {
-    border-color: #32663c;
-    background: #c6d9b8;
-    box-shadow: inset 0 0 0 1px #32663c;
-}
-
-.clock-control:focus-visible {
-    outline: 2px solid #32663c;
-    outline-offset: 2px;
-}
-
-.clock-dial {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    border-radius: 50%;
-    background: conic-gradient(
-        from 0deg,
-        #f3c75e 0deg 180deg,
-        #444 180deg 360deg
-    );
-    transform: rotate(var(--clock-rotation, 0deg));
-}
-
-.clock-markers {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    transform: rotate(var(--clock-rotation, 0deg));
-}
-
-.clock-current-time-tick {
-    position: absolute;
-    z-index: 3;
-    top: -3px;
-    left: calc(50% - 2px);
-    width: 4px;
-    height: 10px;
-    border-radius: 2px;
-    background: #32663c;
-}
-
-.clock-marker {
-    position: absolute;
-    z-index: 1;
-    color: #32663c;
-    font: 18px/1 sans-serif;
-}
-
-.clock-tick {
-    position: absolute;
-    z-index: 2;
-    top: 0;
-    left: calc(50% - 1px);
-    width: 2px;
-    height: 8px;
-    border-radius: 1px;
-    background: #32663c;
-    transform-origin: 1px 43px;
-}
-
-.sunrise-earning {
-    transform: rotate(0deg);
-}
-
-.sunset-earning {
-    transform: rotate(180deg);
-}
-
-.sun-marker {
-    top: 50%;
-    left: -7px;
-    transform: translate(-50%, -50%);
-}
-
-.moon-marker {
-    top: 50%;
-    right: -7px;
-    transform: translate(50%, -50%);
-}
+.done-button:hover:not(:disabled) { background: #205627; }
+.done-button:disabled { opacity: 0.5; cursor: default; }
+.done-button:focus-visible { outline: 3px solid #65b947; outline-offset: 3px; }
+.payout-status:empty { display: none; }
 
 main {
     flex: 1;
@@ -429,18 +316,18 @@ main {
     transform: translate(-50%, -100%) rotate(-2deg);
 }
 
-.daylight-clock[data-tutorial-focus="true"] {
+.payout-controls[data-tutorial-focus="true"] {
     border-radius: 14px;
     outline: 3px solid #65b947;
     outline-offset: 6px;
     box-shadow: 0 0 0 12px rgb(101 185 71 / 18%);
 }
 
-.daylight-clock {
+.payout-controls {
     position: relative;
 }
 
-.tutorial-clock-prompt {
+.tutorial-done-prompt {
     top: calc(100% + 32px);
     bottom: auto;
     left: auto;
@@ -450,15 +337,15 @@ main {
     pointer-events: auto;
 }
 
-.tutorial-clock-prompt p {
+.tutorial-done-prompt p {
     margin: 0 0 14px;
 }
 
-.tutorial-clock-prompt::before {
+.tutorial-done-prompt::before {
     display: none;
 }
 
-.tutorial-clock-prompt::after {
+.tutorial-done-prompt::after {
     top: -16px;
     left: auto;
     right: 24px;
@@ -467,7 +354,7 @@ main {
     filter: none;
 }
 
-.tutorial-clock-next {
+.tutorial-done-next {
     padding: 10px 14px;
     border: 2px solid #fff;
     border-radius: 8px;
@@ -477,7 +364,7 @@ main {
     cursor: pointer;
 }
 
-.tutorial-clock-next:focus-visible {
+.tutorial-done-next:focus-visible {
     outline: 3px solid #205627;
     outline-offset: 3px;
 }
@@ -796,21 +683,6 @@ main {
         min-width: 0;
         flex: 1;
         padding: 12px;
-    }
-
-    .daylight-clock {
-        column-gap: 6px;
-        padding-left: 10px;
-    }
-
-    .clock-controls {
-        gap: 6px;
-    }
-
-    .clock-control {
-        min-width: 26px;
-        height: 28px;
-        padding: 0 4px;
     }
 
     .game-actions {

@@ -53,6 +53,8 @@ function game(saved = null) {
     });
     vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, '../script.js'), 'utf8'), context);
     elements.get('.hex-tiles').ownerSVGElement = new Element();
+    // Fund upgrade and campaign fixtures independently of the game's starting balance.
+    vm.runInContext('moneyInCents = 9999999', context);
     return { run: code => vm.runInContext(code, context), elements, storage };
 }
 
@@ -72,10 +74,10 @@ tutorial.elements.get('.tutorial-welcome-dialog').events.close();
 assert.equal(tutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
 assert.equal(tutorial.run('window.promptDelay'), 700);
 tutorial.run('window.pendingPrompt()');
-assert.equal(tutorial.elements.get('.tutorial-clock-prompt').hidden, false);
+assert.equal(tutorial.elements.get('.tutorial-done-prompt').hidden, false);
 assert.equal(tutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
-tutorial.elements.get('.tutorial-clock-next').events.click();
-assert.equal(tutorial.elements.get('.tutorial-clock-prompt').hidden, true);
+tutorial.elements.get('.tutorial-done-next').events.click();
+assert.equal(tutorial.elements.get('.tutorial-done-prompt').hidden, true);
 assert.equal(tutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, true);
 tutorial.run('window.pendingPrompt()');
 assert.equal(tutorial.elements.get('.game-actions .tutorial-plant-prompt').hidden, false);
@@ -155,7 +157,6 @@ for (const [index, income, cost, days] of [
 ]) {
     assert.equal(g.run('plantedSeeds[0].stageIndex'), index);
     assert.equal(g.run('getGrowthStage(plantedSeeds[0]).earningInCents'), income);
-    assert.equal(g.run('getFreeUpgradeInterval(plantedSeeds[0])'), days * 60000);
     for (let upgrade = 1; upgrade <= 4; upgrade++) {
         const balance = g.run('moneyInCents');
         g.run('upgradeSeed(plantedSeeds[0])');
@@ -169,19 +170,10 @@ for (const [index, income, cost, days] of [
 assert.equal(g.run('plantedSeeds[0].stageIndex'), 5);
 assert.equal(g.run('getGrowthStage(plantedSeeds[0]).earningInCents'), 200);
 assert.equal(g.run('getSeedUpgradeCost(plantedSeeds[0])'), 0);
-assert.equal(g.run('getFreeUpgradeInterval(plantedSeeds[0])'), 0);
 const balance = g.run('moneyInCents');
 g.run('upgradeSeed(plantedSeeds[0])');
 assert.equal(g.run('moneyInCents'), balance);
-g.run('plantSeed("maple"); elapsedCycleTime = 119999; applyFreeSeedUpgrades()');
-assert.equal(g.run('plantedSeeds[1].stageIndex'), 0);
-g.run('elapsedCycleTime = 120000; applyFreeSeedUpgrades()');
-assert.equal(g.run('plantedSeeds[1].stageIndex'), 0);
-assert.equal(g.run('plantedSeeds[1].upgradesInStage'), 1);
-g.run('elapsedCycleTime = 480000; applyFreeSeedUpgrades()');
-assert.equal(g.run('plantedSeeds[1].stageIndex'), 1);
-assert.equal(g.run('plantedSeeds[1].upgradesInStage'), 0);
-g.run('elapsedCycleTime = 4800000; applyFreeSeedUpgrades()');
+g.run('plantSeed("maple"); for (let i = 0; i < 20; i++) upgradeSeed(plantedSeeds[1])');
 assert.equal(g.run('plantedSeeds[1].stageIndex'), 5);
 g.run('plantSeed(); upgradeSeed(plantedSeeds[2])');
 assert.equal(g.run('plantedSeeds[2].stageIndex'), 0);
@@ -201,7 +193,7 @@ assert.equal(legacy.run('plantedSeeds[0].treeType'), 'standard');
 g.run('moneyInCents = 0; updateMoneyDisplay(); plantSeed("maple")');
 assert.equal(g.elements.get('.plant-maple-button').disabled, true);
 assert.equal(g.run('plantedSeeds.length'), 3);
-console.log('Maple planting, stage prices/income/timers, automatic growth, mature cap, saving, legacy saves, and affordability passed.');
+console.log('Maple planting, stage prices/income, purchased growth, mature cap, saving, legacy saves, and affordability passed.');
 
 const birch = game();
 birch.elements.get('.plant-birch-button').events.click();
@@ -220,7 +212,6 @@ for (const [stage, income, cost, days] of [
     assert.ok(birch.elements.get('#seed-dialog-title').textContent.startsWith('Birch '));
     assert.equal(birch.run('getGrowthStage(plantedSeeds[0]).earningInCents'), income);
     assert.equal(birch.run('getSeedUpgradeCost(plantedSeeds[0])'), cost);
-    assert.equal(birch.run('getFreeUpgradeInterval(plantedSeeds[0])'), days * 60000);
     for (let upgrade = 1; upgrade <= 4; upgrade++) {
         const before = birch.run('moneyInCents');
         birch.run('upgradeSeed(plantedSeeds[0])');
@@ -228,7 +219,7 @@ for (const [stage, income, cost, days] of [
         assert.equal(birch.run('plantedSeeds[0].stageIndex'), stage === 5 ? 5 : stage + (upgrade === 4 ? 1 : 0));
     }
 }
-birch.run('plantSeed("birch"); elapsedCycleTime = 60000; applyFreeSeedUpgrades()');
+birch.run('plantSeed("birch"); upgradeSeed(plantedSeeds[1])');
 assert.equal(birch.run('plantedSeeds[1].stageIndex'), 0);
 assert.equal(birch.run('plantedSeeds[1].upgradesInStage'), 1);
 birch.run('gameStarted = true; saveGame()');
@@ -236,12 +227,12 @@ const loadedBirch = game(birch.storage.get('tree-planting-game-save'));
 loadedBirch.run('continueGame()');
 assert.equal(loadedBirch.run('plantedSeeds[1].treeType'), 'birch');
 assert.equal(loadedBirch.run('plantedSeeds[1].upgradesInStage'), 1);
-loadedBirch.run('elapsedCycleTime = 240000; applyFreeSeedUpgrades()');
+loadedBirch.run('for (let i = 0; i < 3; i++) upgradeSeed(plantedSeeds[1])');
 assert.equal(loadedBirch.run('plantedSeeds[1].stageIndex'), 1);
 birch.run('moneyInCents = 0; updateMoneyDisplay(); plantSeed("birch")');
 assert.equal(birch.elements.get('.plant-birch-button').disabled, true);
 assert.equal(birch.run('plantedSeeds.length'), 2);
-console.log('Birch planting, all stage images/stats, four upgrades per stage, automatic growth, save/load, and affordability passed.');
+console.log('Birch planting, all stage images/stats, four upgrades per stage, purchased growth, save/load, and affordability passed.');
 
 const spruce = game();
 spruce.elements.get('.plant-spruce-button').events.click();
@@ -259,7 +250,6 @@ for (const [stage, income, cost, days, image] of [
     assert.equal(spruce.elements.get('.seed-preview img').src, path);
     assert.ok(spruce.elements.get('#seed-dialog-title').textContent.startsWith('Spruce '));
     assert.equal(spruce.run('getGrowthStage(plantedSeeds[0]).earningInCents'), income);
-    assert.equal(spruce.run('getFreeUpgradeInterval(plantedSeeds[0])'), days * 60000);
     assert.equal(spruce.run('getSeedUpgradeCost(plantedSeeds[0])'), cost);
     for (let upgrade = 1; upgrade <= 4; upgrade++) {
         const before = spruce.run('moneyInCents');
@@ -268,18 +258,18 @@ for (const [stage, income, cost, days, image] of [
         assert.equal(spruce.run('plantedSeeds[0].stageIndex'), stage === 5 ? 5 : stage + (upgrade === 4 ? 1 : 0));
     }
 }
-spruce.run('plantSeed("spruce"); elapsedCycleTime = 180000; applyFreeSeedUpgrades(); gameStarted = true; saveGame()');
+spruce.run('plantSeed("spruce"); upgradeSeed(plantedSeeds[1]); gameStarted = true; saveGame()');
 assert.equal(spruce.run('plantedSeeds[1].upgradesInStage'), 1);
 const loadedSpruce = game(spruce.storage.get('tree-planting-game-save'));
 loadedSpruce.run('continueGame()');
 assert.equal(loadedSpruce.run('plantedSeeds[1].treeType'), 'spruce');
 assert.equal(loadedSpruce.run('plantedSeeds[1].upgradesInStage'), 1);
-loadedSpruce.run('elapsedCycleTime = 720000; applyFreeSeedUpgrades()');
+loadedSpruce.run('for (let i = 0; i < 3; i++) upgradeSeed(plantedSeeds[1])');
 assert.equal(loadedSpruce.run('plantedSeeds[1].stageIndex'), 1);
 spruce.run('moneyInCents = 0; updateMoneyDisplay(); plantSeed("spruce")');
 assert.equal(spruce.elements.get('.plant-spruce-button').disabled, true);
 assert.equal(spruce.run('plantedSeeds.length'), 2);
-console.log('Spruce planting, stage images/stats, four upgrades, automatic growth, save/load, and affordability passed.');
+console.log('Spruce planting, stage images/stats, four upgrades, purchased growth, save/load, and affordability passed.');
 
 const oak = game();
 oak.elements.get('.plant-oak-button').events.click();
@@ -297,7 +287,6 @@ for (const [stage, income, cost, days, image] of [
     assert.equal(oak.elements.get('.seed-preview img').src, path);
     assert.ok(oak.elements.get('#seed-dialog-title').textContent.startsWith('Oak '));
     assert.equal(oak.run('getGrowthStage(plantedSeeds[0]).earningInCents'), income);
-    assert.equal(oak.run('getFreeUpgradeInterval(plantedSeeds[0])'), days * 60000);
     assert.equal(oak.run('getSeedUpgradeCost(plantedSeeds[0])'), cost);
     for (let upgrade = 1; upgrade <= 4; upgrade++) {
         const before = oak.run('moneyInCents');
@@ -306,18 +295,18 @@ for (const [stage, income, cost, days, image] of [
         assert.equal(oak.run('plantedSeeds[0].stageIndex'), stage === 5 ? 5 : stage + (upgrade === 4 ? 1 : 0));
     }
 }
-oak.run('plantSeed("oak"); elapsedCycleTime = 240000; applyFreeSeedUpgrades(); gameStarted = true; saveGame()');
+oak.run('plantSeed("oak"); upgradeSeed(plantedSeeds[1]); gameStarted = true; saveGame()');
 assert.equal(oak.run('plantedSeeds[1].upgradesInStage'), 1);
 const loadedOak = game(oak.storage.get('tree-planting-game-save'));
 loadedOak.run('continueGame()');
 assert.equal(loadedOak.run('plantedSeeds[1].treeType'), 'oak');
 assert.equal(loadedOak.run('plantedSeeds[1].upgradesInStage'), 1);
-loadedOak.run('elapsedCycleTime = 960000; applyFreeSeedUpgrades()');
+loadedOak.run('for (let i = 0; i < 3; i++) upgradeSeed(plantedSeeds[1])');
 assert.equal(loadedOak.run('plantedSeeds[1].stageIndex'), 1);
 oak.run('moneyInCents = 299; updateMoneyDisplay(); plantSeed("oak")');
 assert.equal(oak.elements.get('.plant-oak-button').disabled, true);
 assert.equal(oak.run('plantedSeeds.length'), 2);
-console.log('Oak planting, stage images/stats, four upgrades, automatic growth, save/load, and affordability passed.');
+console.log('Oak planting, stage images/stats, four upgrades, purchased growth, save/load, and affordability passed.');
 
 oak.run('moneyInCents = 300; updateMoneyDisplay()');
 assert.equal(oak.elements.get('.plant-oak-button').disabled, false);
@@ -340,14 +329,13 @@ for (const treeType of ['standard', 'maple', 'birch', 'spruce', 'oak']) {
     assert.ok(migrated.elements.get('#seed-dialog-title').textContent.includes('Mature'));
     const before = migrated.run('moneyInCents');
     const cost = migrated.run('getSeedUpgradeCost(plantedSeeds[0])');
-    migrated.run('upgradeSeed(plantedSeeds[0]); elapsedCycleTime += 100000000; applyFreeSeedUpgrades()');
+    migrated.run('upgradeSeed(plantedSeeds[0])');
     assert.equal(migrated.run('moneyInCents'), before - cost);
     assert.equal(migrated.run('plantedSeeds[0].stageIndex'), 5);
     const updatedSave = JSON.parse(migrated.storage.get('tree-planting-game-save'));
-    assert.equal(updatedSave.version, 4);
+    assert.equal(updatedSave.version, 5);
     assert.equal(updatedSave.seeds[0].stageIndex, 5);
     assert.equal(migrated.run('getSeedUpgradeCost(plantedSeeds[0])'), 0);
-    assert.equal(migrated.run('getFreeUpgradeInterval(plantedSeeds[0])'), 0);
 }
 console.log('Retired-stage save migration and Mature growth cap passed for all five tree types.');
 
@@ -475,9 +463,9 @@ incomeLevel.run('startGame(); for (let i = 0; i < 4; i++) plantSeed()');
 assert.equal(incomeLevel.elements.get('.next-level-button').hidden, true);
 incomeLevel.run('plantSeed()');
 assert.equal(incomeLevel.elements.get('.next-level-button').hidden, false);
-const freeGrowthLevel = game();
-freeGrowthLevel.run('startGame(); plantSeed("birch"); plantSeed("birch"); elapsedCycleTime = 720000; applyFreeSeedUpgrades()');
-assert.equal(freeGrowthLevel.elements.get('.next-level-button').hidden, false);
+const upgradedGrowthLevel = game();
+upgradedGrowthLevel.run('startGame(); plantSeed("birch"); plantSeed("birch"); for (const seed of plantedSeeds) { for (let i = 0; i < 8; i++) upgradeSeed(seed); }');
+assert.equal(upgradedGrowthLevel.elements.get('.next-level-button').hidden, false);
 const legacyLevelSave = JSON.parse(incomeLevel.storage.get('tree-planting-game-save'));
 delete legacyLevelSave.currentLevel;
 delete legacyLevelSave.levelOneCompleted;
@@ -485,7 +473,7 @@ const legacyLevel = game(JSON.stringify(legacyLevelSave));
 legacyLevel.run('continueGame()');
 assert.equal(legacyLevel.run('currentLevel'), 1);
 assert.equal(legacyLevel.elements.get('.next-level-button').hidden, false);
-console.log('Level thresholds, automatic growth, persistent unlock, board reset, level 2 persistence, and legacy saves passed.');
+console.log('Level thresholds, purchased growth, persistent unlock, board reset, level 2 persistence, and legacy saves passed.');
 
 const obstacleFree = game();
 obstacleFree.run('startGame(); Math.random = () => 0; spawnRandomTileObstacles()');
@@ -544,10 +532,10 @@ assert.equal(loadedSeedlings.elements.get('.next-level-button').hidden, true);
 const levelThree = game(loadedSeedlings.storage.get('tree-planting-game-save'));
 levelThree.run('continueGame()');
 assert.equal(levelThree.run('currentLevel'), 3);
-const freeSeedlings = game();
-freeSeedlings.run('startGame(); levelOneCompleted = true; advanceToNextLevel(); for (let i = 0; i < 3; i++) plantSeed("birch"); elapsedCycleTime = 1200000; applyFreeSeedUpgrades()');
-assert.equal(freeSeedlings.elements.get('.next-level-button').hidden, false);
-console.log('Level 2 requires three seedlings, tracks progress, unlocks with free growth, and advances and saves level 3.');
+const upgradedSeedlings = game();
+upgradedSeedlings.run('startGame(); levelOneCompleted = true; advanceToNextLevel(); for (let i = 0; i < 3; i++) plantSeed("birch"); for (const seed of plantedSeeds) { for (let i = 0; i < 12; i++) upgradeSeed(seed); }');
+assert.equal(upgradedSeedlings.elements.get('.next-level-button').hidden, false);
+console.log('Level 2 requires three seedlings, tracks progress, unlocks with purchased growth, and advances and saves level 3.');
 
 // Play through every level in order; changes below exercise the real event paths.
 const campaign = game();
@@ -579,7 +567,7 @@ function completeAndAdvance(level) {
 expectIncomplete(1);
 campaign.run('for (let i = 0; i < 5; i++) plantSeed()');
 completeAndAdvance(1);
-campaign.run('for (let i = 0; i < 3; i++) plantSeed("birch"); elapsedCycleTime += 1200000; applyFreeSeedUpgrades()');
+campaign.run('for (let i = 0; i < 3; i++) plantSeed("birch"); for (const seed of plantedSeeds) { for (let i = 0; i < 12; i++) upgradeSeed(seed); }');
 completeAndAdvance(2);
 assert.match(campaign.elements.get('.level-objective').textContent, /Forest Expansion/);
 assert.equal(campaign.run('boardTileCoordinates.length'), 12);
@@ -662,7 +650,7 @@ for (const version of [1, 2, 3]) {
     assert.equal(capped.run('plantedSeeds[0].upgradesInStage'), 0);
     assert.equal(capped.elements.get('.seed-upgrade-cost').textContent, 'Grown');
     const before = capped.run('moneyInCents');
-    capped.run('upgradeSeed(plantedSeeds[0]); elapsedCycleTime += 100000000; applyFreeSeedUpgrades()');
+    capped.run('upgradeSeed(plantedSeeds[0])');
     assert.equal(capped.run('plantedSeeds[0].stageIndex'), 5);
     assert.equal(capped.run('moneyInCents'), before);
     assert.equal(capped.run('matureTreesComposted'), 0);
@@ -764,3 +752,44 @@ plantedTile.events.click();
 assert.equal(tileInteraction.run('selectedSeed'), null);
 assert.equal(tileInteraction.run('moneyInCents'), balanceAfterCompost);
 console.log('Whole planted tiles show hover details and purchase one upgrade; cleared tiles no longer act on removed trees.');
+
+const payouts = game();
+const payoutButton = payouts.elements.get('.done-button');
+const initialBalance = payouts.run('moneyInCents');
+payoutButton.events.click();
+assert.equal(payouts.run('moneyInCents'), initialBalance);
+payouts.run('startGame()');
+assert.equal(payoutButton.disabled, true);
+payoutButton.events.click();
+assert.equal(payouts.run('moneyInCents'), initialBalance);
+payouts.run('plantSeed("maple"); plantSeed("birch")');
+assert.equal(payoutButton.disabled, false);
+const beforePayout = payouts.run('moneyInCents');
+payoutButton.events.click();
+assert.equal(payouts.run('moneyInCents'), beforePayout + 70);
+assert.equal(payouts.run('plantedSeeds[0].upgradesInStage'), 0);
+payoutButton.events.click();
+assert.equal(payouts.run('moneyInCents'), beforePayout + 140);
+const payoutSave = JSON.parse(payouts.storage.get('tree-planting-game-save'));
+assert.equal(payoutSave.moneyInCents, beforePayout + 140);
+assert.equal(payoutSave.elapsedCycleTime, undefined);
+assert.equal(payoutSave.clockSpeed, undefined);
+assert.equal(payoutSave.seeds[0].nextFreeUpgradeAtCycleTime, undefined);
+// Old timing fields are ignored and stripped on the next save.
+payoutSave.version = 4;
+payoutSave.elapsedCycleTime = 500000;
+payoutSave.clockSpeed = 3;
+payoutSave.seeds.forEach(seed => { seed.nextFreeUpgradeAtCycleTime = 1; });
+const legacyPayout = game(JSON.stringify(payoutSave));
+legacyPayout.run('continueGame()');
+assert.equal(legacyPayout.run('moneyInCents'), payoutSave.moneyInCents);
+assert.equal(legacyPayout.run('plantedSeeds[0].upgradesInStage'), 0);
+legacyPayout.elements.get('.done-button').events.click();
+assert.equal(legacyPayout.run('moneyInCents'), payoutSave.moneyInCents + 70);
+payouts.run('for (let i = 0; i < 4; i++) upgradeSeed(plantedSeeds[0])');
+const upgradedBalance = payouts.run('moneyInCents');
+payoutButton.events.click();
+assert.equal(payouts.run('moneyInCents'), upgradedBalance + 90);
+payouts.run('while (plantedSeeds.length) compostTree(plantedSeeds[0])');
+assert.equal(payoutButton.disabled, true);
+console.log('Done pays current tree income once per click, saves earnings, respects game start, and migrates timed saves without passive growth.');

@@ -43,12 +43,10 @@ const plantBirchButton = document.querySelector(".plant-birch-button");
 const plantSpruceButton = document.querySelector(".plant-spruce-button");
 const plantOakButton = document.querySelector(".plant-oak-button");
 const buyTileButton = document.querySelector(".buy-tile-button");
-const daylightClock = document.querySelector(".daylight-clock");
-const daylightStatus = document.querySelector(".daylight-status");
-const clockDial = document.querySelector(".clock-dial");
-const clockFace = document.querySelector(".clock-face");
-const pauseClockButton = document.querySelector(".pause-clock");
-const clockSpeedButton = document.querySelector(".speed-toggle");
+const doneButton = document.querySelector(".done-button");
+const payoutAmount = document.querySelector(".payout-amount");
+const payoutStatus = document.querySelector(".payout-status");
+const payoutControls = document.querySelector(".payout-controls");
 const saveSlotDialog = document.querySelector(".save-slot-dialog");
 const saveSlotSummary = document.querySelector(".save-slot-summary");
 const continueGameButton = document.querySelector(".continue-game-button");
@@ -80,10 +78,8 @@ const seedCostInCents = 100;
 const oakSeedCostInCents = 300;
 const tileCostInCents = 2500;
 const seedUpgradeCostInCents = 50;
-const dayCycleDuration = 60 * 1000;
 const saveStorageKey = "tree-planting-game-save";
-const saveVersion = 4;
-const standardFreeUpgradeIntervalInDays = 3;
+const saveVersion = 5;
 const growthStages = [
     { name: "Seed", image: "images/seed.png", earningInCents: 10 },
     {
@@ -91,35 +87,30 @@ const growthStages = [
         image: "images/germination.png",
         earningInCents: 20,
         upgradeCostInCents: 150,
-        freeUpgradeIntervalInDays: 5,
     },
     {
         name: "Sprout",
         image: "images/sprout.png",
         earningInCents: 40,
         upgradeCostInCents: 400,
-        freeUpgradeIntervalInDays: 8,
     },
     {
         name: "Seedling",
         image: "images/seedling.png",
         earningInCents: 75,
         upgradeCostInCents: 1000,
-        freeUpgradeIntervalInDays: 12,
     },
     {
         name: "Sapling",
         image: "images/sapling.png",
         earningInCents: 150,
         upgradeCostInCents: 2500,
-        freeUpgradeIntervalInDays: 18,
     },
     {
         name: "Mature Tree",
         image: "images/mature.png",
         earningInCents: 300,
         upgradeCostInCents: 0,
-        freeUpgradeIntervalInDays: 0,
     },
 ];
 const mapleGrowthStages = growthStages.map((stage, index) => ({
@@ -135,7 +126,6 @@ const mapleGrowthStages = growthStages.map((stage, index) => ({
     ][index],
     earningInCents: [40, 60, 100, 140, 175, 200][index],
     upgradeCostInCents: [50, 150, 300, 500, 800, 0][index],
-    freeUpgradeIntervalInDays: [2, 2, 3, 3, 4, 0][index],
 }));
 const birchGrowthStages = growthStages.map((stage, index) => ({
     ...stage,
@@ -150,7 +140,6 @@ const birchGrowthStages = growthStages.map((stage, index) => ({
     ][index],
     earningInCents: [30, 50, 75, 100, 125, 150][index],
     upgradeCostInCents: [100, 200, 300, 500, 700, 0][index],
-    freeUpgradeIntervalInDays: [1, 2, 2, 3, 3, 0][index],
 }));
 const spruceGrowthStages = growthStages.map((stage, index) => ({
     ...stage,
@@ -165,7 +154,6 @@ const spruceGrowthStages = growthStages.map((stage, index) => ({
     ][index],
     earningInCents: [25, 50, 100, 200, 300, 400][index],
     upgradeCostInCents: [200, 300, 500, 800, 1200, 0][index],
-    freeUpgradeIntervalInDays: [3, 4, 5, 5, 6, 0][index],
 }));
 const oakGrowthStages = growthStages.map((stage, index) => ({
     ...stage,
@@ -180,7 +168,6 @@ const oakGrowthStages = growthStages.map((stage, index) => ({
     ][index],
     earningInCents: [20, 40, 75, 150, 300, 600][index],
     upgradeCostInCents: [300, 500, 800, 1200, 2000, 0][index],
-    freeUpgradeIntervalInDays: [4, 5, 6, 8, 10, 0][index],
 }));
 const treeGrowthStages = {
     standard: growthStages,
@@ -199,15 +186,6 @@ function getUpgradesPerStage() {
     return upgradesPerGrowthStage;
 }
 const maximumGrowthStage = growthStages.length - 1;
-const daylightDuration = dayCycleDuration / 2;
-const earningTicks = [
-    0,
-    daylightDuration,
-];
-let elapsedCycleTime = 0;
-let previousFrameTime = performance.now();
-let clockSpeed = 1;
-let clockPaused = false;
 let gameStarted = false;
 const levelTileCounts = [7, 7, 12, 15, 19, 19, 27, 36];
 let startingTileCount = levelTileCounts[0];
@@ -260,8 +238,6 @@ function saveGame() {
         completedLevels: Array.from(completedLevels),
         matureTreesComposted,
         moneyInCents,
-        elapsedCycleTime,
-        clockSpeed,
         additionalTiles: purchasedTileCoordinates.map(({ q, r }) => ({ q, r })),
         obstacles: Array.from(tileObstacles.values()).map(({ q, r, key }) => ({
             q,
@@ -274,7 +250,6 @@ function saveGame() {
             y: seed.y,
             stageIndex: seed.stageIndex,
             upgradesInStage: seed.upgradesInStage,
-            nextFreeUpgradeAtCycleTime: seed.nextFreeUpgradeAtCycleTime,
         })),
     };
 
@@ -332,7 +307,6 @@ function readSavedGame() {
             if (seed.stageIndex >= maximumGrowthStage) {
                 seed.stageIndex = maximumGrowthStage;
                 seed.upgradesInStage = 0;
-                seed.nextFreeUpgradeAtCycleTime = savedGameData.elapsedCycleTime;
             }
         });
         savedGameData.version = saveVersion;
@@ -347,7 +321,7 @@ function isValidSaveData(data) {
     if (
         !data ||
         typeof data !== "object" ||
-        ![1, 2, 3, saveVersion].includes(data.version) ||
+        ![1, 2, 3, 4, saveVersion].includes(data.version) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
         (data.boardLayoutVersion !== undefined && ![1, 2].includes(data.boardLayoutVersion)) ||
         (data.boardTileCount !== undefined && ![1, 7, 12, 15, 19, 27, 36, 91].includes(data.boardTileCount)) ||
@@ -360,9 +334,6 @@ function isValidSaveData(data) {
             (!Number.isSafeInteger(data.matureTreesComposted) || data.matureTreesComposted < 0)) ||
         !Number.isFinite(data.moneyInCents) ||
         data.moneyInCents < 0 ||
-        !Number.isFinite(data.elapsedCycleTime) ||
-        data.elapsedCycleTime < 0 ||
-        ![1, 3].includes(data.clockSpeed) ||
         !Array.isArray(data.seeds) ||
         (data.additionalTiles !== undefined &&
             !Array.isArray(data.additionalTiles)) ||
@@ -428,9 +399,7 @@ function isValidSaveData(data) {
             seed.stageIndex > ([1, 3].includes(data.version) ? 6 : maximumGrowthStage) ||
             !Number.isInteger(seed.upgradesInStage) ||
             seed.upgradesInStage < 0 ||
-            seed.upgradesInStage >= getUpgradesPerStage(seed) ||
-            !Number.isFinite(seed.nextFreeUpgradeAtCycleTime) ||
-            seed.nextFreeUpgradeAtCycleTime < 0
+            seed.upgradesInStage >= getUpgradesPerStage(seed)
         ) {
             return false;
         }
@@ -446,16 +415,6 @@ function isValidSaveData(data) {
         occupiedPositions.add(positionKey);
         return true;
     });
-}
-
-function countCycleTicks(cycleTime, tickTimes) {
-    const completedCycles = Math.floor(cycleTime / dayCycleDuration);
-    const cyclePosition = cycleTime % dayCycleDuration;
-
-    return (
-        completedCycles * tickTimes.length +
-        tickTimes.filter((tickTime) => tickTime <= cyclePosition).length
-    );
 }
 
 function updateTutorialUpgradePrompt() {
@@ -535,6 +494,10 @@ function updateMoneyDisplay() {
     plantSpruceButton.disabled = cannotPlantSeed;
     plantOakButton.disabled = moneyInCents < oakSeedCostInCents || availableTiles.length === 0;
     buyTileButton.disabled = moneyInCents < tileCostInCents;
+    const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
+    doneButton.disabled = !gameStarted || income === 0;
+    payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
+    doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
 }
 
 const levelDefinitions = [
@@ -969,13 +932,6 @@ function getSeedUpgradeCost(seedState) {
         seedUpgradeCostInCents;
 }
 
-function getFreeUpgradeInterval(seedState) {
-    const intervalInDays =
-        getGrowthStage(seedState).freeUpgradeIntervalInDays ??
-        standardFreeUpgradeIntervalInDays;
-    return intervalInDays * dayCycleDuration;
-}
-
 function updateSeedAppearance(seedState) {
     const growthProgress = Math.min(1,
         (seedState.stageIndex + seedState.upgradesInStage / getUpgradesPerStage(seedState)) /
@@ -994,7 +950,7 @@ function updateSeedAppearance(seedState) {
         "aria-label",
         seedState.stageIndex === maximumGrowthStage
             ? `Fully grown ${stage.name.toLowerCase()}.`
-            : `${stage.name}, ${seedState.upgradesInStage} of ${getUpgradesPerStage(seedState)} upgrades. Click to upgrade; free upgrade every ${getFreeUpgradeInterval(seedState) / dayCycleDuration} days.`
+            : `${stage.name}, ${seedState.upgradesInStage} of ${getUpgradesPerStage(seedState)} upgrades. Click to upgrade.`
     );
     seedState.image.setAttribute("role", "button");
     seedState.image.setAttribute("aria-description", `Right-click to compost for ${seedState.stageIndex + 1} times this stage's earnings per payout.`);
@@ -1012,11 +968,9 @@ function updateSeedDialog() {
     seedPreviewImage.src = stage.image;
     seedPreviewImage.alt = stage.name;
     const earningPerPayout = (stage.earningInCents / 100).toFixed(2);
-    const freeUpgradeIntervalInDays =
-        getFreeUpgradeInterval(selectedSeed) / dayCycleDuration;
     showLeafAmount(seedDescription, earningPerPayout, "Earns ", isFullyGrown
-        ? " per payout."
-        : ` per payout. Click to upgrade; free growth every ${freeUpgradeIntervalInDays} days.`);
+        ? " each time you click Done."
+        : " each time you click Done. Click the tree to upgrade.");
     const requiredUpgrades = getUpgradesPerStage(selectedSeed);
     seedProgressBar.max = requiredUpgrades;
     const displayedUpgrades = isFullyGrown
@@ -1055,14 +1009,12 @@ function upgradeSeed(seedState) {
     updateMoneyDisplay();
 }
 
-function advanceSeedGrowth(seedState, upgradeTime = elapsedCycleTime) {
+function advanceSeedGrowth(seedState) {
     seedState.upgradesInStage += 1;
     if (seedState.upgradesInStage === getUpgradesPerStage(seedState)) {
         seedState.stageIndex += 1;
         seedState.upgradesInStage = 0;
     }
-    seedState.nextFreeUpgradeAtCycleTime =
-        upgradeTime + getFreeUpgradeInterval(seedState);
 
     updateSeedAppearance(seedState);
     if (selectedSeed === seedState) {
@@ -1079,59 +1031,21 @@ function closeSeedDialog(seedState) {
     selectedSeed = null;
 }
 
-function applyFreeSeedUpgrades() {
-    plantedSeeds.forEach((seed) => {
-        while (
-            seed.stageIndex < maximumGrowthStage &&
-            elapsedCycleTime >= seed.nextFreeUpgradeAtCycleTime
-        ) {
-            advanceSeedGrowth(seed, seed.nextFreeUpgradeAtCycleTime);
-        }
-    });
+function collectPayout() {
+    if (!gameStarted) return;
+    const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
+    if (income === 0) return;
+    moneyInCents += income;
+    payoutStatus.textContent = `Collected ${(income / 100).toFixed(2)} leaves.`;
+    updateMoneyDisplay();
+    saveGame();
 }
 
-function updateDaylightClock(frameTime) {
-    const previousElapsedCycleTime = elapsedCycleTime;
-
-    if (!clockPaused) {
-        elapsedCycleTime += (frameTime - previousFrameTime) * clockSpeed;
-    }
-    previousFrameTime = frameTime;
-
-    const payoutsPassed =
-        countCycleTicks(elapsedCycleTime, earningTicks) -
-        countCycleTicks(previousElapsedCycleTime, earningTicks);
-    let earnedMoney = 0;
-
-    plantedSeeds.forEach((seed) => {
-        const earningInCents = getGrowthStage(seed).earningInCents;
-        earnedMoney += payoutsPassed * earningInCents;
-    });
-
-    if (earnedMoney > 0) {
-        moneyInCents += earnedMoney;
-        updateMoneyDisplay();
-    }
-    applyFreeSeedUpgrades();
-
-    const cyclePosition = elapsedCycleTime % dayCycleDuration;
-    const isDaylight = cyclePosition < dayCycleDuration / 2;
-    const status = isDaylight ? "Day" : "Night";
-    const rotation = -(cyclePosition / dayCycleDuration) * 360;
-
-    daylightStatus.textContent = status;
-    daylightClock.setAttribute("aria-label", `Day and night cycle: ${status}`);
-    clockFace.style.setProperty("--clock-rotation", `${rotation}deg`);
-    requestAnimationFrame(updateDaylightClock);
-}
+doneButton.addEventListener("click", collectPayout);
 
 function startGame() {
-    if (!gameStarted) {
-        gameStarted = true;
-        previousFrameTime = performance.now();
-        requestAnimationFrame(updateDaylightClock);
-        window.setInterval(saveGame, 1000);
-    }
+    gameStarted = true;
+    updateMoneyDisplay();
     saveSlotDialog.close();
     if (startingTileCount === 1 && !tutorialCompleted && plantedSeeds.length === 0) {
         tutorialPromptReady = false;
@@ -1146,14 +1060,14 @@ document.querySelector(".tutorial-welcome-dismiss").addEventListener("click", ()
 });
 tutorialWelcomeDialog.addEventListener("close", () => {
     window.setTimeout(() => {
-        document.querySelector(".tutorial-clock-prompt").hidden = false;
-        daylightClock.setAttribute("data-tutorial-focus", "true");
-        document.querySelector(".tutorial-clock-next").focus();
+        document.querySelector(".tutorial-done-prompt").hidden = false;
+        payoutControls.setAttribute("data-tutorial-focus", "true");
+        document.querySelector(".tutorial-done-next").focus();
     }, 700);
 });
-document.querySelector(".tutorial-clock-next").addEventListener("click", () => {
-    document.querySelector(".tutorial-clock-prompt").hidden = true;
-    daylightClock.setAttribute("data-tutorial-focus", "false");
+document.querySelector(".tutorial-done-next").addEventListener("click", () => {
+    document.querySelector(".tutorial-done-prompt").hidden = true;
+    payoutControls.setAttribute("data-tutorial-focus", "false");
     plantMapleButton.focus();
     window.setTimeout(() => {
         tutorialPromptReady = true;
@@ -1177,9 +1091,6 @@ function continueGame() {
     completedLevels.clear();
     for (let level = 1; level < currentLevel; level += 1) completedLevels.add(level);
     (savedGameData.completedLevels ?? []).forEach((level) => completedLevels.add(level));
-    elapsedCycleTime = savedGameData.elapsedCycleTime;
-    clockSpeed = savedGameData.clockSpeed;
-    clockSpeedButton.setAttribute("aria-pressed", String(clockSpeed === 3));
     (savedGameData.additionalTiles ?? []).forEach(({ q, r }) => {
         addBoardTile(q, r, true);
     });
@@ -1216,36 +1127,12 @@ function startNewGame(withTutorial = false) {
     completedLevels.clear();
     hasStoredSave = false;
     moneyInCents = moneyInCents;
-    elapsedCycleTime = 0;
-    clockSpeed = 1;
-    clockPaused = false;
     if (!withTutorial) {
         spawnRandomTileObstacles();
     }
-    clockSpeedButton.setAttribute("aria-pressed", "false");
-    pauseClockButton.textContent = "⏸";
-    pauseClockButton.setAttribute("aria-label", "Pause daylight clock");
-    pauseClockButton.setAttribute("aria-pressed", "false");
-    pauseClockButton.title = "Pause";
     updateMoneyDisplay();
     startGame();
 }
-
-clockSpeedButton.addEventListener("click", () => {
-    const tripleSpeedEnabled = clockSpeedButton.getAttribute("aria-pressed") !== "true";
-    clockSpeed = tripleSpeedEnabled ? 3 : 1;
-    clockSpeedButton.setAttribute("aria-pressed", String(tripleSpeedEnabled));
-    saveGame();
-});
-
-pauseClockButton.addEventListener("click", () => {
-    clockPaused = !clockPaused;
-    pauseClockButton.textContent = clockPaused ? "▶" : "⏸";
-    pauseClockButton.setAttribute("aria-label", `${clockPaused ? "Resume" : "Pause"} daylight clock`);
-    pauseClockButton.setAttribute("aria-pressed", String(clockPaused));
-    pauseClockButton.title = clockPaused ? "Resume" : "Pause";
-    saveGame();
-});
 
 continueGameButton.addEventListener("click", continueGame);
 nextLevelButton.addEventListener("click", advanceToNextLevel);
@@ -1267,8 +1154,6 @@ function plantSeed(treeType = "maple") {
         y,
         stageIndex: 0,
         upgradesInStage: 0,
-        nextFreeUpgradeAtCycleTime:
-            elapsedCycleTime + getFreeUpgradeInterval({ treeType, stageIndex: 0 }),
     });
     moneyInCents -= plantingCost;
     updateMoneyDisplay();
