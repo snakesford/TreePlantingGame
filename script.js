@@ -354,6 +354,7 @@ const boardTileCoordinates = [];
 const boardTileKeys = new Set();
 const purchasedTileCoordinates = [];
 const tileObstacles = new Map();
+const brokenTiles = new Set();
 const plantedSeeds = [];
 const terrainObstacleDefinitions = [
     { key: "rock", image: "images/rock.png", clearCostInCents: 1000, label: "rock" },
@@ -416,6 +417,7 @@ function saveGame() {
         disasterCooldownTurns,
         activeBoardColors,
         playerStates,
+        brokenTiles: Array.from(brokenTiles),
         tileOwnership: Array.from(tileOwnership, ([key, color]) => ({ key, color })),
         currentLevel,
         boardTileCount: startingTileCount,
@@ -592,6 +594,11 @@ function isValidSaveData(data) {
         tilePositions.push(getTileCenter(tile.q, tile.r));
     }
 
+    if (data.brokenTiles !== undefined && (!Array.isArray(data.brokenTiles) ||
+        (data.brokenTiles.length > 0 && data.naturalExpansion !== true) ||
+        new Set(data.brokenTiles).size !== data.brokenTiles.length ||
+        data.brokenTiles.some(key => typeof key !== "string" || !knownTileKeys.has(key)))) return false;
+
     if (data.tileOwnership !== undefined && (!Array.isArray(data.tileOwnership) ||
         new Set(data.tileOwnership.map(tile => tile?.key)).size !== data.tileOwnership.length ||
         data.tileOwnership.some(tile => !tile || !knownTileKeys.has(tile.key) ||
@@ -707,7 +714,8 @@ window.addEventListener("scroll", updateTutorialUpgradePrompt);
 
 function getPlantableTiles() {
     if (startingTileCount === 22 && !selectedColor) return [];
-    return availableTiles.filter(({ q, r }) => !selectedColor || getBoardTileColor(q, r) === selectedColor);
+    return availableTiles.filter(({ q, r }) => !brokenTiles.has(getTileKey(q, r)) &&
+        (!selectedColor || getBoardTileColor(q, r) === selectedColor));
 }
 
 function updateMoneyDisplay() {
@@ -920,6 +928,7 @@ function resetBoard() {
     purchasedTileCoordinates.length = 0;
     boardTileKeys.clear();
     tileObstacles.clear();
+    brokenTiles.clear();
     createStartingBoard();
     updateBoardViewBox();
 }
@@ -995,7 +1004,7 @@ function addTileObstacle(q, r, obstacleType = null) {
     if (!boardTileKeys.has(getTileKey(q, r)) &&
         !(normalMode && Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) <= 5)) return false;
     const key = getTileKey(q, r);
-    if (tileObstacles.has(key)) return false;
+    if (brokenTiles.has(key) || tileObstacles.has(key)) return false;
 
     const definition = obstacleType
         ? tileObstacleDefinitions.find((tileObstacle) => tileObstacle.key === obstacleType)
@@ -1537,6 +1546,74 @@ function updateDisasterMeter() {
     if (message.textContent !== text) message.textContent = text;
 }
 
+// Broken tiles remain on the board but can never be purchased or planted again.
+function breakTile(q, r) {
+    const key = getTileKey(q, r);
+    if (!boardTileKeys.has(key) || brokenTiles.has(key)) return false;
+    brokenTiles.add(key);
+    closeObstacleDialog(key);
+    for (let index = plantedSeeds.length - 1; index >= 0; index -= 1) {
+        const seed = plantedSeeds[index];
+        if (getTileKey(seed.tile.q, seed.tile.r) !== key) continue;
+        closeSeedDialog(seed);
+        seed.image.remove();
+        plantedSeeds.splice(index, 1);
+    }
+    tileObstacles.get(key)?.element.remove();
+    tileObstacles.delete(key);
+    for (let index = availableTiles.length - 1; index >= 0; index -= 1) {
+        if (getTileKey(availableTiles[index].q, availableTiles[index].r) === key) availableTiles.splice(index, 1);
+    }
+    tileOwnership.set(key, "grey");
+    const tile = tileElements.get(key);
+    tile?.recolor("grey");
+    tile?.setAttribute("data-broken", "true");
+    tile?.setAttribute("aria-label", "Broken tile — cannot be reclaimed");
+    tile?.setAttribute("aria-disabled", "true");
+    const { x, y } = getTileCenter(q, r);
+    const cracks = document.createElementNS(svgNamespace, "path");
+    cracks.setAttribute("class", "tile-cracks");
+    cracks.setAttribute("transform", `translate(${x} ${y - 1}) scale(${radius / 30})`);
+    cracks.setAttribute("d", "M -5 -24 L -2 -14 L -7 -6 L 1 1 L -3 10 L 4 24 M 1 1 L 10 -3 L 15 -12 L 24 -14 M -3 10 L -14 8 L -23 14 M 10 -3 L 16 5 L 23 7");
+    cracks.setAttribute("aria-hidden", "true");
+    tile?.append(cracks);
+    return true;
+}
+
+function triggerLightningStrike() {
+    if (!gameStarted || !naturalExpansion || wildfireActive || disasterCooldownTurns > 0 || disasterTurns < disasterTurnLimit) return false;
+    const candidates = boardTileCoordinates.filter(({ q, r }) =>
+        !brokenTiles.has(getTileKey(q, r)) && getBoardTileColor(q, r) !== "grey");
+    if (!candidates.length) return false;
+    const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
+    breakTile(q, r);
+    disasterTurns = 0;
+    disasterCooldownTurns = disasterCooldownLength;
+    const { x, y } = getTileCenter(q, r);
+    const bolt = document.createElementNS(svgNamespace, "image");
+    bolt.setAttribute("class", "wildfire-lightning");
+    bolt.setAttribute("href", "images/lightning.png");
+    bolt.setAttribute("x", x - maximumTileImageSize / 2);
+    bolt.setAttribute("y", y - maximumTileImageSize);
+    bolt.setAttribute("width", maximumTileImageSize);
+    bolt.setAttribute("height", maximumTileImageSize * 1.5);
+    bolt.setAttribute("pointer-events", "none");
+    bolt.setAttribute("aria-hidden", "true");
+    tiles.append(bolt);
+    window.setTimeout(() => bolt.remove(), 600);
+    payoutStatus.textContent = "Lightning strike! A tile is permanently broken and cannot be reclaimed.";
+    updateMoneyDisplay();
+    saveGame();
+    return true;
+}
+
+function triggerDisaster() {
+    if (Math.random() < 0.5 && triggerLightningStrike()) return;
+    triggerWildfire();
+    // Lightning can still strike when there is no connected forest to burn.
+    if (!wildfireActive) triggerLightningStrike();
+}
+
 // Each group is connected through neighboring hexes and belongs to one player.
 function triggerWildfire() {
     if (!gameStarted || !naturalExpansion || wildfireActive || disasterCooldownTurns > 0 || disasterTurns < disasterTurnLimit) return;
@@ -1644,7 +1721,7 @@ function collectPayout() {
         syncCurrentPlayer();
         moveToNextPlayer();
     }
-    triggerWildfire();
+    triggerDisaster();
     updateMoneyDisplay();
     saveGame();
     scheduleBotTurn();
@@ -1894,6 +1971,10 @@ function continueGame() {
     savedGameData.seeds.forEach(addPlantedSeed);
     if (normalMode) [...tileObstacles.values()].forEach(({q, r}) => claimTreeObstacle(q, r));
     if (normalMode && !savedGameData.greyObstaclesGenerated) spawnRandomTileObstacles();
+    (savedGameData.brokenTiles ?? []).forEach(key => {
+        const [q, r] = key.split(",").map(Number);
+        breakTile(q, r);
+    });
     if (playerStates.length === 0) initializePlayers();
     updateMoneyDisplay();
     if (normalMode && (!selectedColor || !selectedSeedType)) {
@@ -2196,7 +2277,7 @@ function getGreyTileCoordinates() {
     const coordinates = [];
     for (let q = -5; q <= 5; q += 1) {
         for (let r = -5; r <= 5; r += 1) {
-            if (Math.abs(q + r) <= 5 && (!boardTileKeys.has(getTileKey(q, r)) || getBoardTileColor(q,r) === "grey")) {
+            if (!brokenTiles.has(getTileKey(q, r)) && Math.abs(q + r) <= 5 && (!boardTileKeys.has(getTileKey(q, r)) || getBoardTileColor(q,r) === "grey")) {
                 coordinates.push({ q, r });
             }
         }

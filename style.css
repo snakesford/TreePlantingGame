@@ -1213,3 +1213,7 @@ main:has(.player-roster:not([hidden])) .hex-board {
 .tile-body[data-color]:not([data-color="grey"]) .hex-tile { fill: var(--player-edge, #c9a33d); }
 .tile-body[data-color]:not([data-color="grey"]) .tile-surface { fill: var(--player-fill, #f2cf65); }
 .turn-indicator[data-color] { color: var(--player-ink, #705508); }
+
+.tile-body[data-broken="true"] { cursor: not-allowed; }
+.tile-body[data-broken="true"] .tile-surface { fill: #9b9b94; }
+.tile-cracks { fill: none; stroke: #41423e; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }

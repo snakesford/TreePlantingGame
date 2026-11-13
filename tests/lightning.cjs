@@ -1,0 +1,36 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const harness = fs.readFileSync(`${__dirname}/maple.cjs`, 'utf8').split('const clock = game();')[0];
+vm.runInNewContext(harness + `
+const session = game();
+session.run('startNewGame(false, "green", false, "maple", true, "circle"); moneyInCents = 100000;');
+const originalTrees = session.run('plantedSeeds.length');
+session.run('disasterTurns = disasterTurnLimit; triggerLightningStrike()');
+assert.equal(session.run('brokenTiles.size'), 1);
+assert.equal(session.run('plantedSeeds.length'), originalTrees - 1);
+assert.equal(session.run('disasterCooldownTurns'), 2);
+session.run('var brokenKey = [...brokenTiles][0]; var [brokenQ, brokenR] = brokenKey.split(",").map(Number);');
+assert.equal(session.run('getBoardTileColor(brokenQ, brokenR)'), 'grey');
+assert.equal(session.run('tileElements.get(brokenKey).getAttribute("data-broken")'), 'true');
+assert.equal(session.run('getGreyTileCoordinates().some(t => getTileKey(t.q, t.r) === brokenKey)'), false);
+assert.equal(session.run('getPlantingTargets().some(t => getTileKey(t.q, t.r) === brokenKey)'), false);
+session.run('purchaseTile(brokenQ, brokenR); plantSeed("maple", { q: brokenQ, r: brokenR });');
+assert.equal(session.run('getBoardTileColor(brokenQ, brokenR)'), 'grey');
+assert.equal(session.run('plantedSeeds.length'), originalTrees - 1);
+session.run('saveGame()');
+const saved = session.storage.get('tree-planting-game-save');
+assert.equal(session.run('isValidSaveData(JSON.parse(localStorage.getItem(saveStorageKey)))'), true);
+const restored = game(saved);
+restored.run('continueGame()');
+assert.equal(restored.run('brokenTiles.size'), 1);
+assert.equal(restored.run('getPurchaseCandidates().some(t => brokenTiles.has(getTileKey(t.q, t.r)))'), false);
+assert.equal(restored.run('availableTiles.some(t => brokenTiles.has(getTileKey(t.q, t.r)))'), false);
+assert.equal(restored.run('[...brokenTiles].every(key => tileElements.get(key).getAttribute("data-broken") === "true")'), true);
+// Rivers and other obstacles are removed too, and cannot be recreated on broken tiles.
+session.run('var obstacle = [...tileObstacles.values()][0]; if (!boardTileKeys.has(getTileKey(obstacle.q, obstacle.r))) addBoardTile(obstacle.q, obstacle.r, true); breakTile(obstacle.q, obstacle.r);');
+assert.equal(session.run('tileObstacles.has(getTileKey(obstacle.q, obstacle.r))'), false);
+assert.equal(session.run('addTileObstacle(obstacle.q, obstacle.r, "river")'), false);
+session.run('startNewGame(false, "green", false, "maple", true, "circle")');
+assert.equal(session.run('brokenTiles.size'), 0);
+console.log('Lightning destruction, blocked reclamation, obstacle removal, save/load, and new-game reset passed.');
+`, { require, __dirname, console });
