@@ -828,8 +828,15 @@ main {
     cursor: not-allowed;
 }
 
-.tile-body[data-color="grey"] .hex-tile { fill: #7b8289; }
-.tile-body[data-color="grey"] .tile-surface { fill: #a8adb2; }
+.tile-body[data-color="grey"] .hex-tile {
+    fill: #a8adb2;
+    stroke: #7b8289;
+    stroke-width: 1;
+}
+.tile-body[data-color="grey"] .tile-bevel,
+.tile-body[data-color="grey"] .tile-surface {
+    display: none;
+}
 .forfeit-button { background: #89433c; color: #fff; }
 
 .purchase-tile[data-plantable="true"],

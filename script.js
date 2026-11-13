@@ -1224,6 +1224,11 @@ function compostTree(seedState) {
     seedState.image.remove();
     plantedSeeds.splice(index, 1);
     availableTiles.push(seedState.tile);
+    if (normalMode) {
+        const key = getTileKey(seedState.tile.q, seedState.tile.r);
+        tileOwnership.set(key, "grey");
+        tileElements.get(key)?.recolor("grey");
+    }
     updateMoneyDisplay();
     saveGame();
 }
