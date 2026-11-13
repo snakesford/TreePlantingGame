@@ -414,13 +414,13 @@ const currency = game();
 currency.run('plantSeed(); openSeedDialog(plantedSeeds[0])');
 for (const selector of ['.seed-upgrade-cost', '.sprout-description']) {
     const icon = currency.elements.get(selector).children.find(child => child instanceof Element);
-    assert.equal(icon.src, 'images/leaf.png');
+    assert.equal(icon.src, 'images/sun.png');
     assert.equal(icon.alt, 'leaves');
     assert.ok(!currency.elements.get(selector).textContent.includes('$'));
 }
 currency.run('currentLevel = 2; addTileObstacle(0, 0, "rock"); openObstacleDialog("0,0")');
 assert.equal(currency.elements.get('.obstacle-description').textContent, 'Click to remove for 10.00.');
-assert.equal(currency.elements.get('.obstacle-description').children[1].src, 'images/leaf.png');
+assert.equal(currency.elements.get('.obstacle-description').children[1].src, 'images/sun.png');
 console.log('Leaf currency icons render in dynamic costs and earnings.');
 
 for (const type of ['maple', 'birch', 'spruce', 'oak']) {

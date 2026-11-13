@@ -302,7 +302,7 @@ let hasStoredSave = false;
 function showLeafAmount(element, amount, prefix = "", suffix = "") {
     const icon = document.createElement("img");
     icon.className = "currency-icon";
-    icon.src = "images/leaf.png";
+    icon.src = "images/sun.png";
     icon.alt = "leaves";
     icon.width = 20;
     icon.height = 20;
