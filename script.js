@@ -32,6 +32,8 @@ const nextLevelButton = document.querySelector(".next-level-button");
 let currentLevel = 1;
 let normalMode = true;
 let naturalExpansion = false;
+const disasterTurnLimit = 10;
+let disasterTurns = 0;
 let pendingNaturalExpansion = false;
 let levelOneCompleted = false;
 let levelTwoCompleted = false;
@@ -275,6 +277,7 @@ const terrainObstacleDefinitions = [
     { key: "rock", image: "images/rock.png", clearCostInCents: 1000, label: "rock" },
     { key: "boulder", image: "images/boulder.png", clearCostInCents: 3000, label: "boulder" },
     { key: "burnt-tree", image: "images/burnt-tree.png", clearCostInCents: 2500, label: "burnt tree" },
+    { key: "river", image: "images/river.svg", clearCostInCents: 1000, label: "river" },
 ];
 const treeObstacleDefinitions = ["maple", "birch", "spruce", "oak"].flatMap(treeType =>
     treeGrowthStages[treeType].map((stage, stageIndex) => ({
@@ -323,6 +326,7 @@ function saveGame() {
         selectedSeedType,
         normalMode,
         naturalExpansion,
+        disasterTurns,
         activeBoardColors,
         playerStates,
         tileOwnership: Array.from(tileOwnership, ([key, color]) => ({ key, color })),
@@ -612,6 +616,9 @@ function getPlantableTiles() {
 }
 
 function updateMoneyDisplay() {
+    updateDisasterMeter();
+    plantedSeeds.forEach(updateSeedAppearance);
+    updateSeedDialog();
     updateLevelProgress();
     const tutorialActive = startingTileCount === 1;
     plantMapleButton.hidden = false;
@@ -679,7 +686,7 @@ function updatePlayerRoster() {
         const name = player.color[0].toUpperCase() + player.color.slice(1);
         const income = player.eliminated ? 0 : plantedSeeds
             .filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === player.color)
-            .reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
+            .reduce((total, seed) => total + getTreeIncome(seed), 0);
         const card = document.createElement("li");
         card.className = "player-card";
         card.setAttribute("data-active", String(player.color === selectedColor && !player.eliminated && !gameIsOver()));
@@ -733,7 +740,7 @@ function updateLevelProgress() {
     }
     document.querySelector(".level-details").hidden = tutorialActive;
     const definition = levelDefinitions[currentLevel - 1];
-    const income = plantedSeeds.reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
+    const income = plantedSeeds.reduce((total, seed) => total + getTreeIncome(seed), 0);
     let count = plantedSeeds.length;
     let progressText;
     if (currentLevel === 1) {
@@ -863,7 +870,9 @@ function openObstacleDialog(key, event) {
     obstaclePreviewImage.src = obstacle.image;
     obstaclePreviewImage.alt = name;
     const unowned = !boardTileKeys.has(key) || (normalMode && getBoardTileColor(obstacle.q, obstacle.r) === "grey");
-    if (unowned && obstacle.treeType) {
+    if (obstacle.key === "river") {
+        obstacleDescription.textContent = "Plant a seed on this river to produce double sun. Only the tree on this tile gets the bonus. No tile purchase or clearing is needed; pay only the seed cost.";
+    } else if (unowned && obstacle.treeType) {
         const income = treeGrowthStages[obstacle.treeType][obstacle.stageIndex].earningInCents;
         showLeafAmount(obstacleDescription, (income / 100).toFixed(2), "Buy this hex for 25 leaves to own this tree. Earns ", " each turn.");
     } else {
@@ -943,7 +952,7 @@ function addTileObstacle(q, r, obstacleType = null) {
     const availableTileIndex = availableTiles.findIndex(
         (tile) => Math.abs(tile.x - x) < 0.001 && Math.abs(tile.y - y) < 0.001
     );
-    if (availableTileIndex >= 0) {
+    if (availableTileIndex >= 0 && definition.key !== "river") {
         availableTiles.splice(availableTileIndex, 1);
     }
     return true;
@@ -963,7 +972,8 @@ function updateObstacleVisibility() {
         obstacle.element.style.display = visible ? "" : "none";
         obstacle.element.setAttribute("aria-hidden", String(!visible));
         obstacle.element.setAttribute("tabindex", visible ? "0" : "-1");
-        obstacle.element.setAttribute("aria-label", unowned
+        obstacle.element.setAttribute("aria-label", obstacle.key === "river"
+            ? "River: plant a seed here for double sun. No tile purchase needed." : unowned
             ? obstacle.treeType
                 ? `Buy hex with ${obstacle.label} for 25 leaves. This tree will earn leaves for you.`
                 : `Buy hex with ${obstacle.label} for 25 leaves. Removal costs ${obstacle.clearCostInCents / 100} leaves.`
@@ -977,6 +987,10 @@ function activateObstacle(q, r) {
     const key = getTileKey(q, r);
     const obstacle = tileObstacles.get(key);
     if (!obstacle || !isObstacleVisible(obstacle)) return;
+    if (obstacle.key === "river") {
+        beginPlanting(normalMode ? selectedSeedType : "maple");
+        return;
+    }
     if (normalMode && (!boardTileKeys.has(key) || getBoardTileColor(q,r) === "grey")) purchaseTile(q, r);
     else clearTileObstacle(q, r);
 }
@@ -985,7 +999,7 @@ function clearTileObstacle(q, r) {
     if (!canAct()) return;
     const key = getTileKey(q, r);
     const obstacle = tileObstacles.get(key);
-    if (!obstacle) return false;
+    if (!obstacle || obstacle.key === "river") return false;
     if (normalMode && (!boardTileKeys.has(key) || getBoardTileColor(q, r) !== selectedColor)) return false;
     if (moneyInCents < obstacle.clearCostInCents) return false;
 
@@ -1121,7 +1135,7 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
         bevelElements.forEach((bevel, index) => bevel.setAttribute("fill", palettes[newColor][index]));
     };
     tiles.prepend(tileBody);
-    if (!tileObstacles.has(key)) availableTiles.push({ q, r, x, y });
+    if (!tileObstacles.has(key) || isRiverTile({ q, r })) availableTiles.push({ q, r, x, y });
     boardTileCoordinates.push({ q, r });
     boardTileKeys.add(key);
     if (isPurchased) {
@@ -1239,6 +1253,7 @@ function getSeedUpgradeCost(seedState) {
 }
 
 function updateSeedAppearance(seedState) {
+    seedState.image.setAttribute("data-river-bonus", String(isRiverTile(seedState.tile)));
     const growthProgress = Math.min(1,
         (seedState.stageIndex + seedState.upgradesInStage / getUpgradesPerStage(seedState)) /
         maximumGrowthStage
@@ -1273,7 +1288,7 @@ function updateSeedDialog() {
     seedDialogTitle.textContent = stage.name;
     seedPreviewImage.src = stage.image;
     seedPreviewImage.alt = stage.name;
-    const earningPerPayout = (stage.earningInCents / 100).toFixed(2);
+    const earningPerPayout = (getTreeIncome(selectedSeed) / 100).toFixed(2);
     showLeafAmount(seedDescription, earningPerPayout, "Earns ", isFullyGrown
         ? " each time you click Done."
         : " each time you click Done. Click the tree to upgrade.");
@@ -1349,7 +1364,15 @@ function canManageTree(seed) {
 }
 
 function getCurrentPlayerIncome() {
-    return plantedSeeds.filter(canManageTree).reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
+    return plantedSeeds.filter(canManageTree).reduce((total, seed) => total + getTreeIncome(seed), 0);
+}
+
+function isRiverTile({ q, r }) {
+    return tileObstacles.get(getTileKey(q, r))?.key === "river";
+}
+
+function getTreeIncome(seed) {
+    return getGrowthStage(seed).earningInCents * (isRiverTile(seed.tile) ? 2 : 1);
 }
 
 function syncCurrentPlayer() {
@@ -1372,11 +1395,29 @@ function initializePlayers() {
     }));
 }
 
+function updateDisasterMeter() {
+    document.querySelector(".disaster-meter").hidden = !gameStarted || startingTileCount === 1;
+    const track = document.querySelector(".disaster-track");
+    track.setAttribute("aria-valuenow", String(disasterTurns));
+    track.setAttribute("aria-valuemax", String(disasterTurnLimit));
+    track.setAttribute("aria-valuetext", `${disasterTurns} of ${disasterTurnLimit} turns`);
+    document.querySelector(".disaster-fill").style.height = `${disasterTurns / disasterTurnLimit * 100}%`;
+    const message = document.querySelector(".disaster-message");
+    const full = disasterTurns === disasterTurnLimit;
+    message.hidden = !full;
+    if (message.textContent !== (full ? "natural disaster" : "")) {
+        message.textContent = full ? "natural disaster" : "";
+    }
+}
+
 function collectPayout() {
     if (!canAct()) return;
     if (!gameStarted) return;
     const income = getCurrentPlayerIncome();
     if (!normalMode && income === 0) return;
+    if (startingTileCount !== 1 && (!normalMode || selectedColor === humanColor)) {
+        disasterTurns = Math.min(disasterTurnLimit, disasterTurns + 1);
+    }
     moneyInCents += income;
     payoutStatus.textContent = `Collected ${(income / 100).toFixed(2)} leaves.`;
     if (normalMode) {
@@ -1463,7 +1504,7 @@ function scheduleBotTurn() {
                 .sort((a, b) => getSeedUpgradeCost(a) - getSeedUpgradeCost(b) || b.upgradesInStage - a.upgradesInStage)[0];
             const needsSpace = getPlantingTargets().length === 0;
             const obstacle = Array.from(tileObstacles.values())
-                .filter(({ q, r, clearCostInCents }) => boardTileKeys.has(getTileKey(q, r)) &&
+                .filter(({ q, r, clearCostInCents, key }) => key !== "river" && boardTileKeys.has(getTileKey(q, r)) &&
                     getBoardTileColor(q, r) === selectedColor && moneyInCents >= clearCostInCents + plantingCost)
                 .sort((a, b) => a.clearCostInCents - b.clearCostInCents)[0];
             const expansion = getPurchaseCandidates(selectedColor)
@@ -1576,6 +1617,8 @@ function continueGame() {
 
     normalMode = savedGameData.normalMode ?? getSavedStartingTileCount(savedGameData) !== 1;
     naturalExpansion = savedGameData.naturalExpansion === true;
+    disasterTurns = Number.isInteger(savedGameData.disasterTurns)
+        ? Math.max(0, Math.min(disasterTurnLimit, savedGameData.disasterTurns)) : 0;
     playerStates = (savedGameData.playerStates ?? []).map(player => ({ ...player }));
     tileOwnership = new Map((savedGameData.tileOwnership ?? []).map(({key, color}) => [key, color]));
     selectedSeedType = savedGameData.selectedSeedType ?? null;
@@ -1628,6 +1671,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     }
 
     savedGameData = null;
+    disasterTurns = 0;
     playerStates = [];
     tileOwnership.clear();
     normalMode = !withTutorial && !withLevels;
@@ -1646,6 +1690,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     resetBoard();
     if (normalMode) {
         plantStartingSprouts();
+        spawnStartingRiver();
         initializePlayers();
     }
     levelOneCompleted = false;
@@ -1668,6 +1713,15 @@ function choosePlayerColors(playerColor, count) {
         [remainingColors[index], remainingColors[randomIndex]] = [remainingColors[randomIndex], remainingColors[index]];
     }
     return [playerColor, ...remainingColors].slice(0, count);
+}
+
+function spawnStartingRiver() {
+    const sprout = plantedSeeds.find(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === humanColor);
+    if (!sprout) return;
+    const greyTiles = getGreyTileCoordinates();
+    const neighbor = greyTiles.find(({ q, r }) => tileNeighborOffsets.some(([dq, dr]) =>
+        q === sprout.tile.q + dq && r === sprout.tile.r + dr));
+    if (neighbor) addTileObstacle(neighbor.q, neighbor.r, "river");
 }
 
 function plantStartingSprouts() {
@@ -1794,7 +1848,7 @@ function getPlantingTargets() {
     const grey = getGreyTileCoordinates().filter(({ q, r }) =>
         tileNeighborOffsets.some(([dq, dr]) => boardTileKeys.has(getTileKey(q + dq, r + dr)) &&
             getBoardTileColor(q + dq, r + dr) === selectedColor) &&
-        !tileObstacles.has(getTileKey(q,r)) &&
+        (!tileObstacles.has(getTileKey(q,r)) || isRiverTile({ q, r })) &&
         !plantedSeeds.some(seed => seed.tile.q === q && seed.tile.r === r)
     ).map(({q,r}) => ({q,r,...getTileCenter(q,r)}));
     return [...owned, ...grey];
@@ -1863,7 +1917,7 @@ function getGreyTileCoordinates() {
 
 function getPurchaseCandidates(owner = humanColor ?? selectedColor) {
     if (startingTileCount === 1) return [];
-    if (normalMode) return getGreyTileCoordinates();
+    if (normalMode) return getGreyTileCoordinates().filter(tile => !isRiverTile(tile));
     const candidates = new Map();
     boardTileCoordinates.forEach(({ q, r }) => {
         if (normalMode && getBoardTileColor(q, r) !== owner) return;
@@ -1896,17 +1950,22 @@ function updatePurchaseTiles() {
             tile.setAttribute("role", "button");
             tile.setAttribute("tabindex", "0");
             const canPlant = plantingSeedType && getPlantingTargets().some(tile => tile.q === q && tile.r === r);
-            const label = plantingSeedType ? "Plant a seed here to claim this tile" : "Choose Plant Seed to claim adjacent empty tiles, or buy this hex for 25 leaves";
+            const river = isRiverTile({ q, r });
+            const label = river ? "Plant a seed on this river for double sun; no tile purchase needed" : plantingSeedType ? "Plant a seed here to claim this tile" : "Choose Plant Seed to claim adjacent empty tiles, or buy this hex for 25 leaves";
             tile.setAttribute("aria-label", label);
-            tile.setAttribute("aria-disabled", String(plantingSeedType ? !canPlant || !canAct() : disabled || !adjacent));
+            const riverUnavailable = !canAct() || isBotTurn() ||
+                moneyInCents < (selectedSeedType === "oak" ? oakSeedCostInCents : seedCostInCents) ||
+                !getPlantingTargets().some(tile => tile.q === q && tile.r === r);
+            tile.setAttribute("aria-disabled", String(plantingSeedType ? !canPlant || !canAct() : river ? riverUnavailable : disabled || !adjacent));
             const title = document.createElementNS(svgNamespace, "title");
             title.textContent = label;
             tile.append(title);
-            tile.addEventListener("click", () => plantingSeedType ? plantOnTile(q, r) : purchaseTile(q, r));
+            tile.addEventListener("click", () => plantingSeedType ? plantOnTile(q, r) : river ? activateObstacle(q, r) : purchaseTile(q, r));
             tile.addEventListener("keydown", event => {
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     if (plantingSeedType) plantOnTile(q, r);
+                    else if (river) activateObstacle(q, r);
                     else purchaseTile(q, r);
                 }
             });
