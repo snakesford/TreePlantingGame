@@ -945,14 +945,14 @@ main {
 .setup-shapes {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 10px;
 }
 .setup-shapes button {
     display: grid;
     place-items: center;
-    width: 48px;
-    height: 48px;
+    width: 72px;
+    height: 72px;
     padding: 6px;
     border: 1px solid #d6e5bb;
     border-radius: 8px;
@@ -962,7 +962,15 @@ main {
 }
 .setup-shapes button:hover { background: #e4ecd9; }
 .setup-shapes button:focus-visible { outline: 3px solid #32663c; outline-offset: 2px; }
-.shape-icon { display: block; width: 34px; height: 34px; fill: currentColor; }
+.shape-icon {
+    display: block;
+    width: 58px;
+    height: 58px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.25;
+    stroke-linejoin: round;
+}
 
 /* Share the chosen silhouette between setup, the roster, and the turn marker. */
 :is(.setup-preview, .player-avatar, .turn-indicator)[data-shape="square"] { --player-shape: inset(0); }
