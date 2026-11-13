@@ -34,6 +34,8 @@ let normalMode = true;
 let naturalExpansion = false;
 const disasterTurnLimit = 1;
 let disasterTurns = 0;
+const disasterCooldownLength = 2;
+let disasterCooldownTurns = 0;
 let wildfireActive = false;
 let wildfireVersion = 0;
 let pendingNaturalExpansion = false;
@@ -330,6 +332,7 @@ function saveGame() {
         normalMode,
         naturalExpansion,
         disasterTurns,
+        disasterCooldownTurns,
         activeBoardColors,
         playerStates,
         tileOwnership: Array.from(tileOwnership, ([key, color]) => ({ key, color })),
@@ -1413,17 +1416,19 @@ function updateDisasterMeter() {
     document.querySelector(".disaster-fill").style.height = `${disasterTurns / disasterTurnLimit * 100}%`;
     const message = document.querySelector(".disaster-message");
     const full = visible && disasterTurns === disasterTurnLimit;
-    message.hidden = !full;
+    message.hidden = !visible || (!full && disasterCooldownTurns === 0);
     const burningTree = plantedSeeds.find(seed => seed.burning);
     const text = wildfireActive && burningTree
         ? `Wildfire! Three ${getBoardTileColor(burningTree.tile.q, burningTree.tile.r)} trees are burning.`
-        : full ? "natural disaster" : "";
+        : visible && disasterCooldownTurns > 0
+            ? `Disaster cooldown: ${disasterCooldownTurns} ${disasterCooldownTurns === 1 ? "turn" : "turns"} remaining.`
+            : full ? "natural disaster" : "";
     if (message.textContent !== text) message.textContent = text;
 }
 
 // Each group is connected through neighboring hexes and belongs to one player.
 function triggerWildfire() {
-    if (!gameStarted || !naturalExpansion || wildfireActive || disasterTurns < disasterTurnLimit) return;
+    if (!gameStarted || !naturalExpansion || wildfireActive || disasterCooldownTurns > 0 || disasterTurns < disasterTurnLimit) return;
     const adjacent = (a, b) => tileNeighborOffsets.some(([dq, dr]) =>
         a.tile.q + dq === b.tile.q && a.tile.r + dr === b.tile.r);
     const candidates = playerStates.filter(player => !player.eliminated).map(player => {
@@ -1499,6 +1504,7 @@ function animateWildfire() {
             });
             wildfireActive = false;
             disasterTurns = 0;
+            disasterCooldownTurns = disasterCooldownLength;
             payoutStatus.textContent = "Wildfire cleared three trees.";
             updateMoneyDisplay();
             saveGame();
@@ -1513,7 +1519,11 @@ function collectPayout() {
     const income = getCurrentPlayerIncome();
     if (!normalMode && income === 0) return;
     if (naturalExpansion && selectedColor === humanColor) {
-        disasterTurns = Math.min(disasterTurnLimit, disasterTurns + 1);
+        if (disasterCooldownTurns > 0) {
+            disasterCooldownTurns -= 1;
+        } else {
+            disasterTurns = Math.min(disasterTurnLimit, disasterTurns + 1);
+        }
     }
     moneyInCents += income;
     payoutStatus.textContent = `Collected ${(income / 100).toFixed(2)} leaves.`;
@@ -1718,6 +1728,9 @@ function continueGame() {
     naturalExpansion = savedGameData.naturalExpansion === true;
     disasterTurns = Number.isInteger(savedGameData.disasterTurns)
         ? Math.max(0, Math.min(disasterTurnLimit, savedGameData.disasterTurns)) : 0;
+    disasterCooldownTurns = naturalExpansion && Number.isInteger(savedGameData.disasterCooldownTurns)
+        ? Math.max(0, Math.min(disasterCooldownLength, savedGameData.disasterCooldownTurns)) : 0;
+    if (disasterCooldownTurns > 0) disasterTurns = 0;
     playerStates = (savedGameData.playerStates ?? []).map(player => ({ ...player }));
     tileOwnership = new Map((savedGameData.tileOwnership ?? []).map(({key, color}) => [key, color]));
     selectedSeedType = savedGameData.selectedSeedType ?? null;
@@ -1773,6 +1786,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     gameStarted = false;
     moneyInCents = startingMoneyInCents;
     disasterTurns = 0;
+    disasterCooldownTurns = 0;
     performingBotAction = false;
     compostHighlightVersion += 1;
     document.querySelector(".money-counter").setAttribute("data-compost-highlight", "false");

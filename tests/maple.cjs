@@ -1730,6 +1730,7 @@ for (const [random, expectedColor] of [[0, 'green'], [0.99, 'yellow']]) {
         assert.equal(session.run('plantedSeeds.length'), 4);
         assert.equal(session.run('wildfireActive'), false);
         assert.equal(session.run('disasterTurns'), 0);
+        assert.equal(session.run('disasterCooldownTurns'), 2);
         assert.equal(session.run('moneyInCents === window.balanceBeforeFire'), true, 'Fire does not award compost money');
         assert.equal(session.run('plantedSeeds.some(seed => seed.tile.q === 4 && seed.tile.r === 0)'), true, 'Isolated tree survives');
         assert.equal(session.run(`getBoardTileColor(0, ${expectedColor === 'green' ? 0 : 2})`), 'grey');
@@ -1751,3 +1752,24 @@ scatteredFire.run(`plantedSeeds.forEach((seed, index) => {
 }); disasterTurns = disasterTurnLimit; triggerWildfire()`);
 assert.equal(scatteredFire.run('wildfireActive'), false, 'Fire waits when no connected group of three exists');
 console.log('Wildfire randomly targets an eligible player, overlays three connected trees, removes without rewards, persists through reload, and cancels on reset.');
+
+const cooldown = wildfireFixture();
+cooldown.run('Math.random = () => 0; collectPayout(); window.timers.shift()(); window.timers.shift()()');
+assert.equal(cooldown.run('disasterCooldownTurns'), 2);
+assert.match(cooldown.elements.get('.disaster-message').textContent, /2 turns remaining/);
+cooldown.run('performingBotAction = true; collectPayout(); performingBotAction = false');
+assert.equal(cooldown.run('disasterCooldownTurns'), 2, 'Bot turns do not shorten cooldown');
+for (const remaining of [1, 0]) {
+    cooldown.run('selectedColor = humanColor; collectPayout()');
+    assert.equal(cooldown.run('disasterCooldownTurns'), remaining);
+    assert.equal(cooldown.run('disasterTurns'), 0, 'Meter stays empty for two human turns');
+    assert.equal(cooldown.elements.get('.disaster-fill').style.height, '0%');
+    const savedCooldown = game(cooldown.storage.get('tree-planting-game-save'));
+    assert.equal(savedCooldown.run('disasterCooldownTurns'), remaining, 'Cooldown survives reload');
+}
+cooldown.run('selectedColor = humanColor; collectPayout()');
+assert.equal(cooldown.run('disasterTurns'), 1, 'Meter fills on the turn after cooldown');
+assert.equal(cooldown.run('wildfireActive'), true);
+cooldown.run("startNewGame(false, 'green', false, 'maple', true)");
+assert.equal(cooldown.run('disasterCooldownTurns'), 0, 'New games clear cooldown');
+console.log('Disasters wait two human turns before refilling, preserve cooldown across saves, and ignore bot turns.');
