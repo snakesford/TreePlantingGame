@@ -10,6 +10,16 @@
 
 <body>
   <header class="top-bar">
+    <nav class="game-menu" aria-label="Game modes">
+      <button class="menu-toggle" type="button" aria-label="Open game menu" aria-expanded="false" aria-controls="game-menu-panel">
+        <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+      </button>
+      <div id="game-menu-panel" class="game-menu-panel" hidden>
+        <button class="menu-normal-button" type="button">Normal Mode</button>
+        <button class="menu-level-button" type="button">Level Mode</button>
+        <button class="menu-tutorial-button" type="button">Tutorial</button>
+      </div>
+    </nav>
     <div class="level-row">
       <div class="level-indicator">
         <progress class="level-progress" value="0" max="100" aria-label="Level 1 progress"></progress>
@@ -27,35 +37,20 @@
       <output class="money-amount" aria-live="polite">5</output>
       <output class="compost-reward" role="status" hidden></output>
     </div>
-    <aside class="daylight-clock" aria-label="Day and night cycle">
-      <div class="tutorial-plant-prompt tutorial-clock-prompt" hidden>
-        <p>You get paid at dawn and dusk! Your trees earn leaves each time the clock reaches sunrise or sunset.</p>
-        <button class="tutorial-clock-next" type="button">Got it — let’s plant!</button>
+    <aside class="payout-controls" aria-label="Tree income">
+      <div class="tutorial-plant-prompt tutorial-done-prompt" hidden>
+        <p>Click Done to collect leaves from all your trees. Upgrade trees to earn more with every click!</p>
+        <button class="tutorial-done-next" type="button">Got it — let’s plant!</button>
       </div>
-      <span class="daylight-label">Daylight</span>
-      <span class="daylight-status" aria-live="polite">Day</span>
-      <span class="clock-face" role="img"
-        aria-label="One-minute day and night cycle with payouts at sunrise and sunset.">
-        <span class="clock-dial" aria-hidden="true">
-          <span class="clock-tick sunrise-earning"></span>
-          <span class="clock-tick sunset-earning"></span>
-        </span>
-        <span class="clock-markers" aria-hidden="true">
-          <span class="clock-marker sun-marker">☾</span>
-          <span class="clock-marker moon-marker">☀</span>
-        </span>
-        <span class="clock-current-time-tick" aria-hidden="true"></span>
-      </span>
-      <div class="clock-controls" aria-label="Daylight clock controls">
-        <button class="clock-control pause-clock" type="button" aria-label="Pause daylight clock"
-          aria-pressed="false" title="Pause">⏸</button>
-        <button class="clock-control speed-toggle" type="button" aria-label="Triple daylight clock speed"
-          aria-pressed="false" title="Triple speed">▶▶</button>
-      </div>
+      <span class="turn-indicator" role="status" aria-live="polite" hidden></span>
+      <button class="done-button" type="button" disabled>Done</button>
+      <button class="forfeit-button" type="button" hidden>Forfeit</button>
+      <span class="payout-amount">0.00 leaves per click</span>
+      <output class="payout-status" role="status" aria-live="polite"></output>
     </aside>
   </header>
   <output class="save-status" role="status" aria-live="polite"></output>
-  <main aria-label="Green hexagon game board">
+  <main aria-label="Hexagon game board">
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
       <g class="hex-tiles"></g>
     </svg>
@@ -88,9 +83,40 @@
     <p class="save-slot-summary"></p>
     <div class="save-slot-actions">
       <button class="continue-game-button" type="button">Continue</button>
-      <button class="new-game-button" type="button">Start New Game</button>
+      <button class="new-game-button" type="button">Start Normal Mode</button>
       <button class="tutorial-button" type="button">Start with Tutorial</button>
     </div>
+  </dialog>
+  <dialog class="color-dialog" aria-labelledby="color-title">
+    <h1 id="color-title">Choose your color and seed</h1>
+    <p>You control your chosen color. Bots play the other characters automatically.</p>
+    <div class="player-count-control">
+      <label for="player-count">Number of players</label>
+      <output class="player-count-output" for="player-count" aria-live="polite">3 players</output>
+      <input id="player-count" class="player-count-slider" type="range" min="1" max="3" step="1" value="3" />
+      <div class="player-count-ticks" aria-hidden="true"><span>1</span><span>2</span><span>3</span></div>
+    </div>
+    <div class="setup-layout">
+      <div class="setup-choices">
+        <h2>Color</h2>
+        <div class="save-slot-actions setup-colors">
+          <button class="choose-red" type="button" aria-pressed="false">Red</button>
+          <button class="choose-green" type="button" aria-pressed="false">Green</button>
+          <button class="choose-yellow" type="button" aria-pressed="false">Yellow</button>
+        </div>
+        <h2>Seed</h2>
+        <div class="save-slot-actions setup-seeds">
+          <button class="choose-seed-maple" type="button" aria-pressed="false"><img src="images/maple/seed.png" alt="" width="48" height="48" />Maple</button>
+          <button class="choose-seed-birch" type="button" aria-pressed="false"><img src="images/birch/seed.png" alt="" width="48" height="48" />Birch</button>
+          <button class="choose-seed-spruce" type="button" aria-pressed="false"><img src="images/spruce/seed.png" alt="" width="48" height="48" />Spruce</button>
+          <button class="choose-seed-oak" type="button" aria-pressed="false"><img src="images/oak/seed.png" alt="" width="48" height="48" />Oak</button>
+        </div>
+      </div>
+      <div class="setup-preview" role="img" aria-label="Choose a color and seed" data-color="none">
+        <img class="setup-preview-seed" alt="" width="96" height="96" hidden />
+      </div>
+    </div>
+    <button class="setup-done-button" type="button" disabled>Done</button>
   </dialog>
   <dialog class="tutorial-welcome-dialog" aria-labelledby="tutorial-welcome-title">
     <h1 id="tutorial-welcome-title">Welcome to the tutorial!</h1>
@@ -112,7 +138,7 @@
       <div class="seed-preview">
         <img src="images/seed.png" alt="Seed" />
       </div>
-      <p class="sprout-description">Click to upgrade. Free growth every 3 days.</p>
+      <p class="sprout-description">Click the tree to upgrade. Click Done to collect leaves.</p>
     </div>
     <div class="seed-upgrade-progress">
       <div class="seed-progress-track">
