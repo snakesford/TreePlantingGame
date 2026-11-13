@@ -1326,6 +1326,26 @@ const spectatorBoardResume = game(spectatorBoard.storage.get('tree-planting-game
 assertSpectatorBoardVisible(spectatorBoardResume);
 console.log('Spectators see every obstacle immediately and after reload, without gaining board actions.');
 
+const clearingBot = game();
+clearingBot.run(`Math.random = () => 0; startNewGame(false, 'green', false, 'maple');
+    window.nextBot = getPlayerTurnColors(activeBoardColors)[1];
+    window.clearTarget = availableTiles.find(({q,r}) => getBoardTileColor(q,r) === window.nextBot && !tileObstacles.has(getTileKey(q,r)));
+    window.clearKey = getTileKey(window.clearTarget.q, window.clearTarget.r);
+    addTileObstacle(window.clearTarget.q, window.clearTarget.r, 'rock');
+    for (const tile of [...availableTiles].filter(({q,r}) => getBoardTileColor(q,r) === window.nextBot)) {
+        addPlantedSeed({x: tile.x, y: tile.y, treeType: 'maple', stageIndex: 0, upgradesInStage: 0});
+    }
+    playerStates.find(player => player.color === window.nextBot).moneyInCents = 1100;
+    playerStates.find(player => player.color === window.nextBot).seedType = 'maple';`);
+installBotClock(clearingBot);
+clearingBot.run('collectPayout(); window.botTimers.shift()()');
+assert.equal(clearingBot.run('tileObstacles.has(window.clearKey)'), false, 'Bots can clear owned obstacles');
+assert.equal(clearingBot.run('moneyInCents'), 100, 'Bots pay the removal cost');
+clearingBot.run('window.botTimers.shift()()');
+assert.equal(clearingBot.run('plantedSeeds.some(seed => getTileKey(seed.tile.q, seed.tile.r) === window.clearKey)'), true, 'Bots plant on cleared land');
+assert.equal(clearingBot.run('moneyInCents'), 0);
+console.log('Bots clear owned obstacles and plant on the cleared tile using their own balance.');
+
 const expandingBot = game();
 expandingBot.run(`Math.random = () => 0; startNewGame(false, 'green', false, 'maple'); moneyInCents = 1000; syncCurrentPlayer(); updateMoneyDisplay();
     playerStates.find(player => player.color === 'yellow').moneyInCents = 4000;
