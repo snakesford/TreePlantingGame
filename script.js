@@ -188,6 +188,7 @@ let selectedColor = null;
 let playerStates = [];
 let tileOwnership = new Map();
 const forfeitButton = document.querySelector(".forfeit-button");
+const forfeitDialog = document.querySelector(".forfeit-dialog");
 let humanColor = null;
 let botTurnVersion = 0;
 let performingBotAction = false;
@@ -1697,7 +1698,17 @@ function forfeitPlayer() {
     scheduleBotTurn();
 }
 
-forfeitButton.addEventListener("click", forfeitPlayer);
+forfeitButton.addEventListener("click", () => {
+    if (!gameStarted || !normalMode || !canAct()) return;
+    forfeitDialog.showModal();
+});
+document.querySelector(".forfeit-yes").addEventListener("click", () => {
+    forfeitDialog.close();
+    forfeitPlayer();
+});
+document.querySelector(".forfeit-no").addEventListener("click", () => {
+    forfeitDialog.close();
+});
 
 // Keep ownership separate from the active turn, including across reloads.
 function isBotTurn() {

@@ -337,7 +337,9 @@ body {
     margin-left: auto;
 }
 
-.done-button {
+.done-button,
+.forfeit-button,
+.forfeit-actions button {
     min-width: 110px;
     min-height: 48px;
     padding: 12px 24px;
@@ -349,9 +351,13 @@ body {
     cursor: pointer;
 }
 
-.done-button:hover:not(:disabled) { background: #205627; }
-.done-button:disabled { opacity: 0.5; cursor: default; }
-.done-button:focus-visible { outline: 3px solid #65b947; outline-offset: 3px; }
+.done-button:hover:not(:disabled),
+.forfeit-yes:hover { background: #205627; }
+.done-button:disabled,
+.forfeit-button:disabled { opacity: 0.5; cursor: default; }
+.done-button:focus-visible,
+.forfeit-button:focus-visible,
+.forfeit-actions button:focus-visible { outline: 3px solid #65b947; outline-offset: 3px; }
 .payout-status:empty { display: none; }
 
 main {
@@ -626,6 +632,7 @@ main {
 
 .color-dialog,
 .save-slot-dialog,
+.forfeit-dialog,
 .tutorial-welcome-dialog {
     position: fixed;
     inset: 50% auto auto 50%;
@@ -641,6 +648,7 @@ main {
 
 .color-dialog::backdrop,
 .save-slot-dialog::backdrop,
+.forfeit-dialog::backdrop,
 .tutorial-welcome-dialog::backdrop {
     background: rgb(26 39 28 / 55%);
 }
@@ -1051,7 +1059,21 @@ main {
 .tile-body[data-color="grey"] .tile-surface {
     display: none;
 }
-.forfeit-button { background: #89433c; color: #fff; }
+.forfeit-button {
+    position: fixed;
+    left: max(24px, env(safe-area-inset-left));
+    bottom: max(24px, env(safe-area-inset-bottom));
+    z-index: 10;
+    border-color: #69322d;
+    background: #89433c;
+    color: #fff;
+}
+.forfeit-button:hover:not(:disabled),
+.forfeit-no:hover { background: #69322d; }
+.forfeit-dialog h2 { margin: 0 0 24px; font-size: 1.3rem; text-align: center; }
+.forfeit-actions { display: flex; justify-content: center; gap: 12px; }
+.forfeit-actions .forfeit-no { background: #89433c; border-color: #69322d; }
+.forfeit-actions .forfeit-no:hover { background: #69322d; }
 
 .purchase-tile[data-plantable="true"],
 .tile-body[data-plantable="true"] .hex-tile {

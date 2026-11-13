@@ -1405,6 +1405,14 @@ forfeitGame.run(`Math.random = () => 0.5; startNewGame(false, 'green', false, 'm
     purchaseTile(5,0); window.humanTree = plantedSeeds.find(canManageTree); window.humanTile = window.humanTree.tile;`);
 installBotClock(forfeitGame);
 forfeitGame.elements.get('.forfeit-button').events.click();
+assert.equal(forfeitGame.elements.get('.forfeit-dialog').open, true);
+assert.equal(forfeitGame.run('Boolean(playerStates.find(player => player.color === "green").eliminated)'), false);
+forfeitGame.elements.get('.forfeit-no').events.click();
+assert.equal(forfeitGame.elements.get('.forfeit-dialog').open, false);
+assert.equal(forfeitGame.run('Boolean(playerStates.find(player => player.color === "green").eliminated)'), false);
+forfeitGame.elements.get('.forfeit-button').events.click();
+forfeitGame.elements.get('.forfeit-yes').events.click();
+assert.equal(forfeitGame.elements.get('.forfeit-dialog').open, false);
 assert.equal(forfeitGame.run('playerStates.find(player => player.color === "green").eliminated'), true);
 assert.equal(forfeitGame.run('selectedColor'), 'yellow');
 assert.equal(forfeitGame.run('getBoardTileColor(5,0)'), 'grey');
