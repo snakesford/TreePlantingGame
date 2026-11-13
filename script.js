@@ -32,7 +32,7 @@ const nextLevelButton = document.querySelector(".next-level-button");
 let currentLevel = 1;
 let normalMode = true;
 let naturalExpansion = false;
-const disasterTurnLimit = 10;
+const disasterTurnLimit = 1;
 let disasterTurns = 0;
 let pendingNaturalExpansion = false;
 let levelOneCompleted = false;
@@ -144,7 +144,8 @@ const obstacleDialogTitle = document.querySelector("#obstacle-dialog-title");
 const obstaclePreviewImage = document.querySelector(".obstacle-preview img");
 const obstacleDescription = document.querySelector(".obstacle-description");
 let selectedObstacle = null;
-let moneyInCents = 1000;
+const startingMoneyInCents = 1000;
+let moneyInCents = startingMoneyInCents;
 const seedCostInCents = 100;
 const oakSeedCostInCents = 300;
 const tileCostInCents = 2500;
@@ -1391,7 +1392,7 @@ function initializePlayers() {
         color,
         seedType: color === selectedColor ? selectedSeedType :
             plantedSeeds.find(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === color)?.treeType ?? "maple",
-        moneyInCents: color === selectedColor ? moneyInCents : 1000,
+        moneyInCents: color === selectedColor ? moneyInCents : startingMoneyInCents,
     }));
 }
 
@@ -1400,7 +1401,7 @@ function updateDisasterMeter() {
     const track = document.querySelector(".disaster-track");
     track.setAttribute("aria-valuenow", String(disasterTurns));
     track.setAttribute("aria-valuemax", String(disasterTurnLimit));
-    track.setAttribute("aria-valuetext", `${disasterTurns} of ${disasterTurnLimit} turns`);
+    track.setAttribute("aria-valuetext", `${disasterTurns} of ${disasterTurnLimit} ${disasterTurnLimit === 1 ? "turn" : "turns"}`);
     document.querySelector(".disaster-fill").style.height = `${disasterTurns / disasterTurnLimit * 100}%`;
     const message = document.querySelector(".disaster-message");
     const full = disasterTurns === disasterTurnLimit;
@@ -1671,7 +1672,20 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     }
 
     savedGameData = null;
+    gameStarted = false;
+    moneyInCents = startingMoneyInCents;
     disasterTurns = 0;
+    performingBotAction = false;
+    compostHighlightVersion += 1;
+    document.querySelector(".money-counter").setAttribute("data-compost-highlight", "false");
+    document.querySelector(".compost-reward").hidden = true;
+    payoutStatus.textContent = "";
+    tutorialPromptReady = false;
+    tutorialUpgradeSeed = null;
+    tutorialUpgradeReady = false;
+    tutorialCompostSeed = null;
+    tutorialCompostReady = false;
+    if (tutorialCompleteDialog.open) tutorialCompleteDialog.close();
     playerStates = [];
     tileOwnership.clear();
     normalMode = !withTutorial && !withLevels;
@@ -1698,7 +1712,6 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     matureTreesComposted = 0;
     completedLevels.clear();
     hasStoredSave = false;
-    moneyInCents = moneyInCents;
     if (!withTutorial) {
         spawnRandomTileObstacles();
     }
@@ -1880,7 +1893,9 @@ function plantOnTile(q, r) {
 }
 
 function updatePlantingHighlights() {
-    const targets = new Set(plantingSeedType ? getPlantingTargets().map(({q,r}) => getTileKey(q,r)) : []);
+    const cost = plantingSeedType === "oak" ? oakSeedCostInCents : seedCostInCents;
+    const canPlant = plantingSeedType && moneyInCents >= cost;
+    const targets = new Set(canPlant ? getPlantingTargets().map(({q,r}) => getTileKey(q,r)) : []);
     [tileElements, purchaseTileElements].forEach(elements => elements.forEach((element, key) => {
         element.setAttribute("data-plantable", String(targets.has(key)));
     }));
