@@ -662,8 +662,49 @@ function updateMoneyDisplay() {
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
     updatePurchaseTiles();
     updatePlantingHighlights();
+    updatePlayerRoster();
     payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
     doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
+}
+
+function updatePlayerRoster() {
+    const roster = document.querySelector(".player-roster");
+    roster.hidden = !normalMode || !gameStarted || playerStates.length === 0;
+    if (roster.hidden) {
+        roster.replaceChildren();
+        return;
+    }
+    const rosterPlayers = [...playerStates].sort((a, b) => Number(b.color === humanColor) - Number(a.color === humanColor));
+    const cards = rosterPlayers.map(player => {
+        const name = player.color[0].toUpperCase() + player.color.slice(1);
+        const income = player.eliminated ? 0 : plantedSeeds
+            .filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === player.color)
+            .reduce((total, seed) => total + getGrowthStage(seed).earningInCents, 0);
+        const card = document.createElement("li");
+        card.className = "player-card";
+        card.setAttribute("data-active", String(player.color === selectedColor && !player.eliminated && !gameIsOver()));
+        card.setAttribute("data-eliminated", String(Boolean(player.eliminated)));
+        const avatar = document.createElement("span");
+        avatar.className = "player-avatar";
+        avatar.setAttribute("data-color", player.color);
+        const seed = document.createElement("img");
+        seed.src = `images/${player.seedType}/seed.png`;
+        seed.alt = `${player.seedType} seed`;
+        seed.width = 36;
+        seed.height = 36;
+        avatar.replaceChildren(seed);
+        const details = document.createElement("div");
+        details.className = "player-card-details";
+        const label = document.createElement("strong");
+        label.textContent = `${name}${player.color === humanColor ? " (you)" : ""}${player.eliminated ? " · Out" : ""}`;
+        const earnings = document.createElement("span");
+        earnings.className = "player-earnings";
+        showLeafAmount(earnings, (income / 100).toFixed(2), "", " / turn");
+        details.replaceChildren(label, earnings);
+        card.replaceChildren(avatar, details);
+        return card;
+    });
+    roster.replaceChildren(...cards);
 }
 
 const levelDefinitions = [
