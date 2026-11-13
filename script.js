@@ -34,6 +34,8 @@ let normalMode = true;
 let naturalExpansion = false;
 const disasterTurnLimit = 1;
 let disasterTurns = 0;
+let wildfireActive = false;
+let wildfireVersion = 0;
 let pendingNaturalExpansion = false;
 let levelOneCompleted = false;
 let levelTwoCompleted = false;
@@ -348,6 +350,7 @@ function saveGame() {
         })),
         seeds: plantedSeeds.map((seed) => ({
             treeType: seed.treeType,
+            burning: seed.burning === true,
             x: seed.x,
             y: seed.y,
             stageIndex: seed.stageIndex,
@@ -524,6 +527,8 @@ function isValidSaveData(data) {
     return data.seeds.every((seed) => {
         if (
             !seed ||
+            (seed.burning !== undefined && typeof seed.burning !== "boolean") ||
+            (seed.burning === true && data.naturalExpansion !== true) ||
             !Number.isFinite(seed.x) ||
             !Number.isFinite(seed.y) ||
             (seed.treeType !== undefined && !Object.hasOwn(treeGrowthStages, seed.treeType)) ||
@@ -806,6 +811,8 @@ function advanceToNextLevel() {
 }
 
 function resetBoard() {
+    wildfireVersion += 1;
+    wildfireActive = false;
     plantingSeedType = null;
     botTurnVersion += 1;
     closeSeedDialog(selectedSeed);
@@ -1397,18 +1404,91 @@ function initializePlayers() {
 }
 
 function updateDisasterMeter() {
-    document.querySelector(".disaster-meter").hidden = !gameStarted || startingTileCount === 1;
+    const visible = gameStarted && naturalExpansion;
+    document.querySelector(".disaster-meter").hidden = !visible;
     const track = document.querySelector(".disaster-track");
     track.setAttribute("aria-valuenow", String(disasterTurns));
     track.setAttribute("aria-valuemax", String(disasterTurnLimit));
     track.setAttribute("aria-valuetext", `${disasterTurns} of ${disasterTurnLimit} ${disasterTurnLimit === 1 ? "turn" : "turns"}`);
     document.querySelector(".disaster-fill").style.height = `${disasterTurns / disasterTurnLimit * 100}%`;
     const message = document.querySelector(".disaster-message");
-    const full = disasterTurns === disasterTurnLimit;
+    const full = visible && disasterTurns === disasterTurnLimit;
     message.hidden = !full;
-    if (message.textContent !== (full ? "natural disaster" : "")) {
-        message.textContent = full ? "natural disaster" : "";
-    }
+    const burningTree = plantedSeeds.find(seed => seed.burning);
+    const text = wildfireActive && burningTree
+        ? `Wildfire! Three ${getBoardTileColor(burningTree.tile.q, burningTree.tile.r)} trees are burning.`
+        : full ? "natural disaster" : "";
+    if (message.textContent !== text) message.textContent = text;
+}
+
+// Each group is connected through neighboring hexes and belongs to one player.
+function triggerWildfire() {
+    if (!gameStarted || !naturalExpansion || wildfireActive || disasterTurns < disasterTurnLimit) return;
+    const adjacent = (a, b) => tileNeighborOffsets.some(([dq, dr]) =>
+        a.tile.q + dq === b.tile.q && a.tile.r + dr === b.tile.r);
+    const candidates = playerStates.filter(player => !player.eliminated).map(player => {
+        const trees = plantedSeeds.filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === player.color);
+        const groups = [];
+        for (let a = 0; a < trees.length; a++) {
+            for (let b = a + 1; b < trees.length; b++) {
+                for (let c = b + 1; c < trees.length; c++) {
+                    const edges = Number(adjacent(trees[a], trees[b])) +
+                        Number(adjacent(trees[a], trees[c])) + Number(adjacent(trees[b], trees[c]));
+                    if (edges >= 2) groups.push([trees[a], trees[b], trees[c]]);
+                }
+            }
+        }
+        return groups;
+    }).filter(groups => groups.length > 0);
+    if (!candidates.length) return;
+    const groups = candidates[Math.floor(Math.random() * candidates.length)];
+    groups[Math.floor(Math.random() * groups.length)].forEach(seed => { seed.burning = true; });
+    animateWildfire();
+}
+
+function animateWildfire() {
+    const burning = plantedSeeds.filter(seed => seed.burning === true);
+    if (!naturalExpansion || !burning.length || wildfireActive) return;
+    wildfireActive = true;
+    const version = ++wildfireVersion;
+    botTurnVersion += 1;
+    closeSeedDialog(selectedSeed);
+    const flames = burning.map(seed => {
+        const fire = document.createElementNS(svgNamespace, "image");
+        fire.setAttribute("class", "wildfire-flame");
+        fire.setAttribute("href", "images/fire.png");
+        fire.setAttribute("x", seed.x - maximumTileImageSize / 2);
+        fire.setAttribute("y", seed.y - maximumTileImageSize / 2);
+        fire.setAttribute("width", maximumTileImageSize);
+        fire.setAttribute("height", maximumTileImageSize);
+        fire.setAttribute("pointer-events", "none");
+        fire.setAttribute("aria-hidden", "true");
+        tiles.append(fire);
+        return fire;
+    });
+    updateMoneyDisplay();
+    saveGame();
+    window.setTimeout(() => {
+        if (version !== wildfireVersion) return;
+        flames.forEach(fire => fire.remove());
+        burning.forEach(seed => {
+            const index = plantedSeeds.indexOf(seed);
+            if (index < 0) return;
+            closeSeedDialog(seed);
+            seed.image.remove();
+            plantedSeeds.splice(index, 1);
+            availableTiles.push(seed.tile);
+            const key = getTileKey(seed.tile.q, seed.tile.r);
+            tileOwnership.set(key, "grey");
+            tileElements.get(key)?.recolor("grey");
+        });
+        wildfireActive = false;
+        disasterTurns = 0;
+        payoutStatus.textContent = "Wildfire cleared three trees.";
+        updateMoneyDisplay();
+        saveGame();
+        scheduleBotTurn();
+    }, 2000);
 }
 
 function collectPayout() {
@@ -1416,7 +1496,7 @@ function collectPayout() {
     if (!gameStarted) return;
     const income = getCurrentPlayerIncome();
     if (!normalMode && income === 0) return;
-    if (startingTileCount !== 1 && (!normalMode || selectedColor === humanColor)) {
+    if (naturalExpansion && selectedColor === humanColor) {
         disasterTurns = Math.min(disasterTurnLimit, disasterTurns + 1);
     }
     moneyInCents += income;
@@ -1426,6 +1506,7 @@ function collectPayout() {
         syncCurrentPlayer();
         moveToNextPlayer();
     }
+    triggerWildfire();
     updateMoneyDisplay();
     saveGame();
     scheduleBotTurn();
@@ -1437,7 +1518,7 @@ function gameIsOver() {
 }
 
 function canAct() {
-    return !gameIsOver() && !(normalMode && playerStates.find(player => player.color === selectedColor)?.eliminated) &&
+    return !wildfireActive && !gameIsOver() && !(normalMode && playerStates.find(player => player.color === selectedColor)?.eliminated) &&
         (!isBotTurn() || performingBotAction);
 }
 
@@ -1489,13 +1570,13 @@ function isBotTurn() {
 
 function scheduleBotTurn() {
     const version = ++botTurnVersion;
-    if (!gameStarted || !isBotTurn() || gameIsOver()) return;
+    if (!gameStarted || wildfireActive || !isBotTurn() || gameIsOver()) return;
     let actions = 0;
     let planted = false;
     let composted = false;
     let expanded = false;
     const step = () => {
-        if (version !== botTurnVersion || !gameStarted || !isBotTurn() || gameIsOver()) return;
+        if (version !== botTurnVersion || !gameStarted || wildfireActive || !isBotTurn() || gameIsOver()) return;
         performingBotAction = true;
         try {
             const trees = plantedSeeds.filter(canManageTree);
@@ -1562,6 +1643,7 @@ doneButton.addEventListener("click", collectPayout);
 
 function startGame() {
     gameStarted = true;
+    animateWildfire();
     updateMoneyDisplay();
     saveSlotDialog.close();
     if (startingTileCount === 1 && tutorialCompleted) tutorialCompleteDialog.showModal();

@@ -29,7 +29,7 @@ class Element {
     getBoundingClientRect() { return { left: 400, top: 400, width: 30, height: 30 }; }
 }
 
-function game(saved = null) {
+function game(saved = null, captureTimers = false) {
     const elements = new Map();
     const storage = new Map(saved ? [['tree-planting-game-save', saved]] : []);
     const tileContainer = new Element();
@@ -46,7 +46,9 @@ function game(saved = null) {
         },
         window: { events: {}, addEventListener(type, callback) {
             (this.events[type] ??= []).push(callback);
-        }, setInterval() {}, setTimeout() {}, innerWidth: 1000, innerHeight: 800 },
+        }, setInterval() {}, timers: [], setTimeout(callback) {
+            if (captureTimers) this.timers.push(callback);
+        }, innerWidth: 1000, innerHeight: 800 },
         localStorage: {
             getItem: key => storage.get(key) ?? null,
             setItem: (key, value) => storage.set(key, value),
@@ -1598,7 +1600,7 @@ for (const expansion of [false, true]) {
 console.log('Rivers allow seed-only planting, buff only their own tree, preserve bonuses through saves and replanting, and pay double production in all setups.');
 
 const disaster = game();
-disaster.run("Math.random = () => 0.5; playerCount = 1; startNewGame(false, 'green', false, 'maple')");
+disaster.run("Math.random = () => 0.5; playerCount = 1; startNewGame(false, 'green', false, 'maple', true)");
 assert.equal(disaster.elements.get('.disaster-meter').hidden, false);
 assert.equal(disaster.elements.get('.disaster-fill').style.height, '0%');
 disaster.run('collectPayout()');
@@ -1618,12 +1620,21 @@ assert.equal(disasterResume.elements.get('.disaster-message').hidden, true);
 disasterResume.run('startNewGame(true)');
 assert.equal(disasterResume.elements.get('.disaster-meter').hidden, true);
 const disasterBots = game();
-disasterBots.run("Math.random = () => 0.5; playerCount = 3; startNewGame(false, 'green', false, 'maple')");
+disasterBots.run("Math.random = () => 0.5; playerCount = 3; startNewGame(false, 'green', false, 'maple', true)");
 installBotClock(disasterBots);
 disasterBots.run('collectPayout()');
 finishBotTurns(disasterBots);
 assert.equal(disasterBots.run('disasterTurns'), 1, 'Bot turns do not accelerate the disaster meter');
-console.log('Disaster progress fills after one human turn, persists, announces completion, caps at full, and resets for new games.');
+for (const start of ["startNewGame(false, 'green', false, 'maple')", 'startNewGame(false, null, true)', 'startNewGame(true)']) {
+    const otherMode = game();
+    otherMode.run(start);
+    assert.equal(otherMode.elements.get('.disaster-meter').hidden, true);
+    otherMode.run('collectPayout()');
+    assert.equal(otherMode.run('disasterTurns'), 0, 'Other modes do not advance disaster progress');
+    otherMode.run('disasterTurns = disasterTurnLimit; updateDisasterMeter()');
+    assert.equal(otherMode.elements.get('.disaster-message').hidden, true, 'Old progress cannot show a disaster announcement in other modes');
+}
+console.log('Disaster progress is exclusive to natural expansion, persists, announces completion, caps at full, and resets for new games.');
 
 const freshModes = [
     "startNewGame(false, 'green', false, 'maple')",
@@ -1661,3 +1672,72 @@ for (const source of freshModes) {
     }
 }
 console.log('All new-game mode transitions reset money, player balances, progress, ownership, planting, and reward feedback; continuing retains saved money.');
+
+
+function wildfireFixture() {
+    const session = game(null, true);
+    session.run(`
+        playerCount = 2;
+        startNewGame(false, 'green', false, 'maple', true);
+        activeBoardColors = ['green', 'yellow'];
+        initializePlayers();
+        resetBoard();
+        tileOwnership.clear();
+        window.flames = [];
+        tiles.append = image => { if (image.getAttribute('class') === 'wildfire-flame') window.flames.push(image); };
+        for (const [color, coordinates] of [
+            ['green', [[0, 0], [1, 0], [2, 0], [4, 0]]],
+            ['yellow', [[0, 2], [1, 2], [2, 2]]]
+        ]) {
+            for (const [q, r] of coordinates) {
+                addBoardTile(q, r, true, color);
+                const tile = availableTiles.find(tile => tile.q === q && tile.r === r);
+                tileOwnership.set(getTileKey(q, r), color);
+                addPlantedSeed({ x: tile.x, y: tile.y, treeType: 'maple', stageIndex: 2, upgradesInStage: 0 });
+            }
+        }
+        window.timers = [];
+    `);
+    return session;
+}
+for (const [random, expectedColor] of [[0, 'green'], [0.99, 'yellow']]) {
+    const fire = wildfireFixture();
+    fire.run(`Math.random = () => ${random}; collectPayout()`);
+    assert.equal(fire.run('wildfireActive'), true);
+    assert.equal(fire.run('plantedSeeds.length'), 7, 'Trees stay visible while burning');
+    assert.equal(fire.run('plantedSeeds.filter(seed => seed.burning).length'), 3);
+    assert.equal(fire.run(`plantedSeeds.filter(seed => seed.burning).every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === '${expectedColor}')`), true);
+    assert.equal(fire.run('window.flames.length'), 3);
+    assert.equal(fire.run('window.flames.every(image => image.getAttribute("href") === "images/fire.png")'), true);
+    assert.equal(fire.run('canAct()'), false);
+    assert.match(fire.elements.get('.disaster-message').textContent, /Wildfire!/);
+    const pendingSave = fire.storage.get('tree-planting-game-save');
+    const resumed = game(pendingSave, true);
+    assert.equal(resumed.run('wildfireActive'), true, 'Reload resumes pending fire');
+    assert.equal(resumed.run('plantedSeeds.filter(seed => seed.burning).length'), 3);
+    for (const session of [fire, resumed]) {
+        session.run('window.balanceBeforeFire = moneyInCents; window.timers.shift()()');
+        assert.equal(session.run('plantedSeeds.length'), 4);
+        assert.equal(session.run('wildfireActive'), false);
+        assert.equal(session.run('disasterTurns'), 0);
+        assert.equal(session.run('moneyInCents === window.balanceBeforeFire'), true, 'Fire does not award compost money');
+        assert.equal(session.run('plantedSeeds.some(seed => seed.tile.q === 4 && seed.tile.r === 0)'), true, 'Isolated tree survives');
+        assert.equal(session.run(`getBoardTileColor(0, ${expectedColor === 'green' ? 0 : 2})`), 'grey');
+        assert.equal(game(session.storage.get('tree-planting-game-save')).run('plantedSeeds.length'), 4, 'Removal persists');
+    }
+    assert.equal(fire.run('window.flames.every(image => image.removed)'), true);
+}
+const cancelledFire = wildfireFixture();
+cancelledFire.run(`Math.random = () => 0; collectPayout();
+    window.oldFireCallback = window.timers.shift();
+    startNewGame(false, 'green', false, 'maple', true);
+    window.treeCount = plantedSeeds.length;
+    window.oldFireCallback();`);
+assert.equal(cancelledFire.run('plantedSeeds.length === window.treeCount && !wildfireActive && disasterTurns === 0'), true, 'New game cancels old fire');
+const scatteredFire = wildfireFixture();
+scatteredFire.run(`plantedSeeds.forEach((seed, index) => {
+    seed.tile = { q: index * 3, r: 0 };
+    tileOwnership.set(getTileKey(seed.tile.q, seed.tile.r), 'green');
+}); disasterTurns = disasterTurnLimit; triggerWildfire()`);
+assert.equal(scatteredFire.run('wildfireActive'), false, 'Fire waits when no connected group of three exists');
+console.log('Wildfire randomly targets an eligible player, overlays three connected trees, removes without rewards, persists through reload, and cancels on reset.');
