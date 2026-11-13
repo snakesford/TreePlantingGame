@@ -1453,42 +1453,58 @@ function animateWildfire() {
     const version = ++wildfireVersion;
     botTurnVersion += 1;
     closeSeedDialog(selectedSeed);
-    const flames = burning.map(seed => {
-        const fire = document.createElementNS(svgNamespace, "image");
-        fire.setAttribute("class", "wildfire-flame");
-        fire.setAttribute("href", "images/fire.png");
-        fire.setAttribute("x", seed.x - maximumTileImageSize / 2);
-        fire.setAttribute("y", seed.y - maximumTileImageSize / 2);
-        fire.setAttribute("width", maximumTileImageSize);
-        fire.setAttribute("height", maximumTileImageSize);
-        fire.setAttribute("pointer-events", "none");
-        fire.setAttribute("aria-hidden", "true");
-        tiles.append(fire);
-        return fire;
-    });
+    const lightning = document.createElementNS(svgNamespace, "image");
+    const struckTree = burning[0];
+    lightning.setAttribute("class", "wildfire-lightning");
+    lightning.setAttribute("href", "images/lightning.png");
+    lightning.setAttribute("x", struckTree.x - maximumTileImageSize / 2);
+    lightning.setAttribute("y", struckTree.y - maximumTileImageSize);
+    lightning.setAttribute("width", maximumTileImageSize);
+    lightning.setAttribute("height", maximumTileImageSize * 1.5);
+    lightning.setAttribute("pointer-events", "none");
+    lightning.setAttribute("aria-hidden", "true");
+    tiles.append(lightning);
     updateMoneyDisplay();
     saveGame();
     window.setTimeout(() => {
         if (version !== wildfireVersion) return;
-        flames.forEach(fire => fire.remove());
-        burning.forEach(seed => {
-            const index = plantedSeeds.indexOf(seed);
-            if (index < 0) return;
-            closeSeedDialog(seed);
-            seed.image.remove();
-            plantedSeeds.splice(index, 1);
-            availableTiles.push(seed.tile);
-            const key = getTileKey(seed.tile.q, seed.tile.r);
-            tileOwnership.set(key, "grey");
-            tileElements.get(key)?.recolor("grey");
+        lightning.remove();
+        updateDisasterMeter();
+        const flames = burning.map(seed => {
+            const fire = document.createElementNS(svgNamespace, "image");
+            fire.setAttribute("class", "wildfire-flame");
+            fire.setAttribute("href", "images/fire.png");
+            fire.setAttribute("x", seed.x - maximumTileImageSize / 2);
+            fire.setAttribute("y", seed.y - maximumTileImageSize / 2);
+            fire.setAttribute("width", maximumTileImageSize);
+            fire.setAttribute("height", maximumTileImageSize);
+            fire.setAttribute("pointer-events", "none");
+            fire.setAttribute("aria-hidden", "true");
+            tiles.append(fire);
+            return fire;
         });
-        wildfireActive = false;
-        disasterTurns = 0;
-        payoutStatus.textContent = "Wildfire cleared three trees.";
-        updateMoneyDisplay();
-        saveGame();
-        scheduleBotTurn();
-    }, 2000);
+        window.setTimeout(() => {
+            if (version !== wildfireVersion) return;
+            flames.forEach(fire => fire.remove());
+            burning.forEach(seed => {
+                const index = plantedSeeds.indexOf(seed);
+                if (index < 0) return;
+                closeSeedDialog(seed);
+                seed.image.remove();
+                plantedSeeds.splice(index, 1);
+                availableTiles.push(seed.tile);
+                const key = getTileKey(seed.tile.q, seed.tile.r);
+                tileOwnership.set(key, "grey");
+                tileElements.get(key)?.recolor("grey");
+            });
+            wildfireActive = false;
+            disasterTurns = 0;
+            payoutStatus.textContent = "Wildfire cleared three trees.";
+            updateMoneyDisplay();
+            saveGame();
+            scheduleBotTurn();
+        }, 2000);
+    }, 600);
 }
 
 function collectPayout() {

@@ -1684,7 +1684,11 @@ function wildfireFixture() {
         resetBoard();
         tileOwnership.clear();
         window.flames = [];
-        tiles.append = image => { if (image.getAttribute('class') === 'wildfire-flame') window.flames.push(image); };
+        window.lightning = [];
+        tiles.append = image => {
+            if (image.getAttribute('class') === 'wildfire-flame') window.flames.push(image);
+            if (image.getAttribute('class') === 'wildfire-lightning') window.lightning.push(image);
+        };
         for (const [color, coordinates] of [
             ['green', [[0, 0], [1, 0], [2, 0], [4, 0]]],
             ['yellow', [[0, 2], [1, 2], [2, 2]]]
@@ -1707,6 +1711,11 @@ for (const [random, expectedColor] of [[0, 'green'], [0.99, 'yellow']]) {
     assert.equal(fire.run('plantedSeeds.length'), 7, 'Trees stay visible while burning');
     assert.equal(fire.run('plantedSeeds.filter(seed => seed.burning).length'), 3);
     assert.equal(fire.run(`plantedSeeds.filter(seed => seed.burning).every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === '${expectedColor}')`), true);
+    assert.equal(fire.run('window.flames.length'), 0, 'Lightning precedes the flames');
+    assert.equal(fire.run('window.lightning.length'), 1);
+    assert.equal(fire.run('window.lightning[0].getAttribute("href")'), 'images/lightning.png');
+    fire.run('window.timers.shift()()');
+    assert.equal(fire.run('window.lightning[0].removed'), true);
     assert.equal(fire.run('window.flames.length'), 3);
     assert.equal(fire.run('window.flames.every(image => image.getAttribute("href") === "images/fire.png")'), true);
     assert.equal(fire.run('canAct()'), false);
@@ -1715,6 +1724,7 @@ for (const [random, expectedColor] of [[0, 'green'], [0.99, 'yellow']]) {
     const resumed = game(pendingSave, true);
     assert.equal(resumed.run('wildfireActive'), true, 'Reload resumes pending fire');
     assert.equal(resumed.run('plantedSeeds.filter(seed => seed.burning).length'), 3);
+    resumed.run('window.timers.shift()()');
     for (const session of [fire, resumed]) {
         session.run('window.balanceBeforeFire = moneyInCents; window.timers.shift()()');
         assert.equal(session.run('plantedSeeds.length'), 4);
