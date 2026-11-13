@@ -89,6 +89,11 @@
     </aside>
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
       <defs>
+        <pattern id="dry-terrain" width="32" height="28" patternUnits="userSpaceOnUse">
+          <rect width="32" height="28" fill="#d8bc83" />
+          <path d="M0 8 L8 11 L13 7 L21 13 L32 9 M8 11 L10 20 L5 28 M21 13 L20 23 L26 28 M13 7 L15 0 M10 20 L20 23"
+                fill="none" stroke="#a38654" stroke-width="0.9" stroke-linejoin="round" />
+        </pattern>
         <filter id="river-bonus-outline" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
           <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
           <feFlood flood-color="#ffd034" result="gold" />

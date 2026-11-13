@@ -394,6 +394,16 @@ const boardTileKeys = new Set();
 const purchasedTileCoordinates = [];
 const tileObstacles = new Map();
 const brokenTiles = new Set();
+const tileTerrain = new Map();
+
+function getTileTerrain(q, r) {
+    const key = getTileKey(q, r);
+    if (!tileTerrain.has(key)) {
+        const roll = Math.random();
+        tileTerrain.set(key, roll < 0.15 ? "dry" : roll < 0.30 ? "lush" : "normal");
+    }
+    return tileTerrain.get(key);
+}
 const plantedSeeds = [];
 const terrainObstacleDefinitions = [
     { key: "rock", image: "images/rock.png", clearCostInCents: 1000, label: "rock" },
@@ -458,6 +468,7 @@ function saveGame() {
         playerStates,
         victory,
         brokenTiles: Array.from(brokenTiles),
+        tileTerrain: Array.from(tileTerrain, ([key, type]) => ({ key, type })),
         tileOwnership: Array.from(tileOwnership, ([key, color]) => ({ key, color })),
         currentLevel,
         boardTileCount: startingTileCount,
@@ -587,6 +598,10 @@ function isValidSaveData(data) {
             (!Number.isSafeInteger(data.matureTreesComposted) || data.matureTreesComposted < 0)) ||
         !Number.isFinite(data.moneyInCents) ||
         data.moneyInCents < 0 ||
+        (data.tileTerrain !== undefined && (!Array.isArray(data.tileTerrain) ||
+            data.tileTerrain.some(tile => !tile || typeof tile.key !== "string" ||
+                !/^-?\d+,-?\d+$/.test(tile.key) || !["dry", "normal", "lush"].includes(tile.type)) ||
+            new Set(data.tileTerrain.map(tile => tile.key)).size !== data.tileTerrain.length)) ||
         !Array.isArray(data.seeds) ||
         (data.additionalTiles !== undefined &&
             !Array.isArray(data.additionalTiles)) ||
@@ -1044,7 +1059,9 @@ function advanceToNextLevel() {
     saveGame();
 }
 
-function resetBoard() {
+function resetBoard(terrain = []) {
+    tileTerrain.clear();
+    terrain.forEach(({ key, type }) => tileTerrain.set(key, type));
     wildfireVersion += 1;
     wildfireActive = false;
     plantingSeedType = null;
@@ -1311,6 +1328,7 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
     tile.setAttribute("points", points);
     const tileBody = document.createElementNS(svgNamespace, "g");
     tileBody.setAttribute("class", "tile-body");
+    tileBody.setAttribute("data-terrain", getTileTerrain(q, r));
     const color = tileOwnership.get(key) ?? (isPurchased && normalMode ? purchasedColor ?? "green" : getBoardTileColor(q, r));
     tileBody.setAttribute("data-color", color);
     tileBody.setAttribute("data-points", points);
@@ -2091,7 +2109,7 @@ function continueGame() {
     // Preserve the layout of existing saves, including older full hexagon boards.
     startingTileCount = getSavedStartingTileCount(savedGameData);
     boardLayoutVersion = savedGameData.boardLayoutVersion ?? 1;
-    resetBoard();
+    resetBoard(savedGameData.tileTerrain ?? []);
     levelOneCompleted = savedGameData.levelOneCompleted ?? false;
     levelTwoCompleted = savedGameData.levelTwoCompleted ?? false;
     matureTreesComposted = savedGameData.matureTreesComposted ?? 0;
@@ -2483,6 +2501,7 @@ function updatePurchaseTiles() {
             const { x, y } = getTileCenter(q, r);
             const tile = document.createElementNS(svgNamespace, "polygon");
             tile.setAttribute("class", "purchase-tile");
+            tile.setAttribute("data-terrain", getTileTerrain(q, r));
             tile.setAttribute("points", Array.from({ length: 6 }, (_, index) => {
                 const angle = ((index * 60 - 90) * Math.PI) / 180;
                 return `${x + (radius - 1.2) * Math.cos(angle)},${y + (radius - 1.2) * Math.sin(angle)}`;
@@ -2614,6 +2633,21 @@ function getStartingCoordinates(count, layoutVersion = boardLayoutVersion, color
 }
 
 function createStartingBoard() {
+    // Allocate rounded quotas before shuffling so even small maps have a balanced mix.
+    const terrainCoordinates = normalMode ? Array.from({ length: 11 }, (_, i) => i - 5)
+        .flatMap(q => Array.from({ length: 11 }, (_, i) => i - 5)
+            .filter(r => Math.abs(q + r) <= 5).map(r => ({ q, r })))
+        : getStartingCoordinates(startingTileCount);
+    if (tileTerrain.size === 0) {
+        const specialCount = Math.round(terrainCoordinates.length * 0.15);
+        const types = terrainCoordinates.map((_, i) =>
+            i < specialCount ? "dry" : i < specialCount * 2 ? "lush" : "normal");
+        for (let i = types.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [types[i], types[j]] = [types[j], types[i]];
+        }
+        terrainCoordinates.forEach(({ q, r }, i) => tileTerrain.set(getTileKey(q, r), types[i]));
+    }
     getStartingCoordinates(startingTileCount).forEach(({ q, r }) => addBoardTile(q, r));
 }
 

@@ -1298,3 +1298,16 @@ main:has(.player-roster:not([hidden])) .hex-board {
 .tile-body[data-broken="true"] { cursor: not-allowed; }
 .tile-body[data-broken="true"] .tile-surface { fill: #9b9b94; }
 .tile-cracks { fill: none; stroke: #41423e; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+/* Terrain surfaces are independent of the player-colored ownership bevels. */
+[data-terrain="normal"] { --terrain-fill: #8cbb72; }
+[data-terrain="lush"] { --terrain-fill: #28633c; }
+[data-terrain="dry"] { --terrain-fill: url(#dry-terrain); }
+.tile-body[data-terrain][data-color]:not([data-broken="true"]) .tile-surface,
+.purchase-tile[data-terrain],
+.tile-body[data-terrain][data-color="grey"] .hex-tile {
+    fill: var(--terrain-fill);
+}
+.purchase-tile[data-terrain]:hover,
+.purchase-tile[data-terrain]:focus-visible {
+    filter: brightness(1.12);
+}
