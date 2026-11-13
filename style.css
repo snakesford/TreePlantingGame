@@ -1211,6 +1211,23 @@ main:has(.player-roster:not([hidden])) .hex-board {
     grid-row: 1;
     width: 100%;
 }
+/* Center the board in the viewport independently of the header and player roster. */
+@media (min-width: 701px) and (min-height: 700px) {
+    main:has(.player-roster:not([hidden])) .player-sidebar {
+        position: fixed;
+        left: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    main:has(.player-roster:not([hidden])) .hex-board {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(720px, calc(100vw - 2 * var(--roster-width) - 40px), calc(100svh - 320px));
+        max-height: calc(100svh - 320px);
+    }
+}
 @media (max-width: 1100px) {
     main:has(.player-roster:not([hidden])) { --roster-width: 250px; }
     .player-card { padding: 12px; }
