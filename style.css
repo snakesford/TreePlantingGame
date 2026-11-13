@@ -12,6 +12,9 @@ body {
 body {
     min-height: 100vh;
     min-height: 100svh;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
     display: flex;
     flex-direction: column;
     background: #f4f6f1;
