@@ -84,7 +84,9 @@
     </div>
   </aside>
   <main aria-label="Hexagon game board">
-    <ul class="player-roster" aria-label="Players and earnings per turn" hidden></ul>
+    <aside class="player-sidebar" aria-label="Victory conditions and players" hidden>
+      <ul class="player-roster" aria-label="Players and earnings per turn" hidden></ul>
+    </aside>
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
       <defs>
         <filter id="river-bonus-outline" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
@@ -123,6 +125,14 @@
     </button>
     <button class="buy-tile-button" type="button">Buy Tile <img class="currency-icon" src="images/sun.png" alt="leaves" width="20" height="20" />25</button>
   </div>
+  <dialog class="victory-dialog" aria-labelledby="victory-title" aria-describedby="victory-description">
+    <h2 id="victory-title">Victory!</h2>
+    <p id="victory-description"></p>
+    <div class="victory-actions">
+      <button class="victory-continue" type="button" autofocus>Keep playing</button>
+      <button class="victory-finish" type="button">Finish</button>
+    </div>
+  </dialog>
   <dialog class="forfeit-dialog" aria-labelledby="forfeit-title">
     <h2 id="forfeit-title">Are you sure you want to forfeit?</h2>
     <div class="forfeit-actions">

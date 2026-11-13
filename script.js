@@ -44,6 +44,45 @@ let levelOneCompleted = false;
 let levelTwoCompleted = false;
 const completedLevels = new Set();
 let matureTreesComposted = 0;
+let victory = null;
+const victoryDialog = document.querySelector(".victory-dialog");
+
+function checkVictory() {
+    if (!normalMode || !gameStarted) return;
+    if (!victory) {
+        for (const player of playerStates) {
+            if (player.eliminated) continue;
+            const condition = getPlayerVictoryProgress(player).find(condition => condition.progress >= 1);
+            if (!condition) continue;
+            victory = { color: player.color, condition: condition.name, status: "pending" };
+            botTurnVersion += 1;
+            plantingSeedType = null;
+            closeSeedDialog(selectedSeed);
+            closeObstacleDialog(selectedObstacle);
+            saveGame();
+            break;
+        }
+    }
+    if (victory?.status === "pending" && !victoryDialog.open) {
+        const name = victory.color[0].toUpperCase() + victory.color.slice(1);
+        document.querySelector("#victory-title").textContent = `${name}${victory.color === humanColor ? " (you)" : " (bot)"} wins!`;
+        document.querySelector("#victory-description").textContent = `${victory.condition} achieved! Keep playing or finish this game.`;
+        victoryDialog.showModal();
+    }
+}
+
+function resolveVictory(status) {
+    if (victory?.status !== "pending") return;
+    victory.status = status;
+    victoryDialog.close();
+    updateMoneyDisplay();
+    saveGame();
+    if (status === "continued") scheduleBotTurn();
+}
+
+document.querySelector(".victory-continue").addEventListener("click", () => resolveVictory("continued"));
+document.querySelector(".victory-finish").addEventListener("click", () => resolveVictory("finished"));
+victoryDialog.addEventListener("cancel", event => event.preventDefault());
 const levelObjective = document.querySelector(".level-objective");
 const levelProgressText = document.querySelector(".level-progress-text");
 const levelNotification = document.querySelector(".level-notification");
@@ -416,6 +455,7 @@ function saveGame() {
         disasterCooldownTurns,
         activeBoardColors,
         playerStates,
+        victory,
         tileOwnership: Array.from(tileOwnership, ([key, color]) => ({ key, color })),
         currentLevel,
         boardTileCount: startingTileCount,
@@ -523,6 +563,11 @@ function isValidSaveData(data) {
         (data.selectedShape !== undefined && !playerShapes.includes(data.selectedShape) && !legacyPlayerShapes.includes(data.selectedShape)) ||
         (data.elapsedCycleTime !== undefined && (!Number.isFinite(data.elapsedCycleTime) || data.elapsedCycleTime < 0)) ||
         (data.clockSpeed !== undefined && ![1, 3].includes(data.clockSpeed)) ||
+        (data.victory != null && (typeof data.victory !== "object" ||
+            !savedPlayerColors.includes(data.victory.color) ||
+            !(data.playerStates ?? []).some(player => player.color === data.victory.color) ||
+            typeof data.victory.condition !== "string" ||
+            !["pending", "continued", "finished"].includes(data.victory.status))) ||
         (data.clockPaused !== undefined && typeof data.clockPaused !== "boolean") ||
         (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
         (data.naturalExpansion !== undefined && typeof data.naturalExpansion !== "boolean") ||
@@ -711,6 +756,7 @@ function getPlantableTiles() {
 }
 
 function updateMoneyDisplay() {
+    checkVictory();
     updateDisasterMeter();
     plantedSeeds.forEach(updateSeedAppearance);
     updateSeedDialog();
@@ -752,10 +798,12 @@ function updateMoneyDisplay() {
     const spectating = normalMode && playerStates.find(player => player.color === humanColor)?.eliminated;
     if (spectating) turnIndicator.textContent = `Spectating · ${turnIndicator.textContent}`;
     if (gameIsOver()) {
-        const winner = playerStates.find(player => !player.eliminated);
+        const winner = victory?.status === "finished"
+            ? playerStates.find(player => player.color === victory.color)
+            : playerStates.find(player => !player.eliminated);
         turnIndicator.textContent = winner ? `${winner.color[0].toUpperCase() + winner.color.slice(1)} wins!` : "Game over";
     }
-    if (spectating || gameIsOver()) {
+    if (spectating || gameIsOver() || victory?.status === "pending") {
         [plantMapleButton, plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton, doneButton]
             .forEach(button => { button.disabled = true; });
     }
@@ -772,9 +820,49 @@ function updateMoneyDisplay() {
     doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
 }
 
+// Compare different targets by the fraction completed, keeping ties in definition order.
+function getPlayerVictoryProgress(player) {
+    const ownedTiles = player.eliminated ? [] : boardTileCoordinates.filter(({ q, r }) =>
+        getBoardTileColor(q, r) === player.color);
+    const trees = player.eliminated ? [] : plantedSeeds.filter(seed =>
+        getBoardTileColor(seed.tile.q, seed.tile.r) === player.color);
+    const boardKeys = new Set([...boardTileCoordinates, ...getGreyTileCoordinates()]
+        .map(({ q, r }) => getTileKey(q, r)));
+    const territory = boardKeys.size ? ownedTiles.length / boardKeys.size : 0;
+    const income = trees.reduce((total, seed) => total + getTreeIncome(seed), 0) / 100;
+    const mature = trees.filter(seed => seed.stageIndex === maximumGrowthStage).length;
+    const remaining = new Map(trees.map(seed => [getTileKey(seed.tile.q, seed.tile.r), seed.tile]));
+    let connected = 0;
+    while (remaining.size) {
+        const first = remaining.values().next().value;
+        const queue = [first];
+        remaining.delete(getTileKey(first.q, first.r));
+        for (let index = 0; index < queue.length; index += 1) {
+            const tile = queue[index];
+            for (const [dq, dr] of tileNeighborOffsets) {
+                const key = getTileKey(tile.q + dq, tile.r + dr);
+                if (!remaining.has(key)) continue;
+                queue.push(remaining.get(key));
+                remaining.delete(key);
+            }
+        }
+        connected = Math.max(connected, queue.length);
+    }
+    return [
+        { name: "🌲 Forest Victory", progress: territory / 0.6, detail: `${(territory * 100).toFixed(1)}% / 60% of hexes` },
+        { name: "💰 Economic Victory", progress: income / 100, detail: `${income.toFixed(2)} / 100 income per turn` },
+        { name: "🌳 Growth Victory", progress: mature / 20, detail: `${mature} / 20 mature trees` },
+        { name: "🌿 Ecological Victory", progress: connected / 30, detail: `${connected} / 30 connected trees` },
+        // Purchases currently only claim unowned tiles; forfeits are not buyouts.
+        { name: "🏆 Domination Victory", progress: 0, detail: "0 / 2 opponents bought out" },
+    ].map(condition => ({ ...condition, progress: Math.min(1, condition.progress) }))
+        .sort((a, b) => b.progress - a.progress);
+}
+
 function updatePlayerRoster() {
     const roster = document.querySelector(".player-roster");
     roster.hidden = !normalMode || !gameStarted || playerStates.length === 0;
+    document.querySelector(".player-sidebar").hidden = roster.hidden;
     if (roster.hidden) {
         roster.replaceChildren();
         return;
@@ -785,7 +873,10 @@ function updatePlayerRoster() {
         const income = player.eliminated ? 0 : plantedSeeds
             .filter(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === player.color)
             .reduce((total, seed) => total + getTreeIncome(seed), 0);
-        const card = document.createElement("li");
+        const row = document.createElement("li");
+        row.className = "player-row";
+        row.setAttribute("data-eliminated", String(Boolean(player.eliminated)));
+        const card = document.createElement("div");
         card.className = "player-card";
         card.setAttribute("data-active", String(player.color === selectedColor && !player.eliminated && !gameIsOver()));
         card.setAttribute("data-eliminated", String(Boolean(player.eliminated)));
@@ -807,8 +898,45 @@ function updatePlayerRoster() {
         earnings.className = "player-earnings";
         showLeafAmount(earnings, (income / 100).toFixed(2), "", " / turn");
         details.replaceChildren(label, earnings);
-        card.replaceChildren(avatar, details);
-        return card;
+        const identity = document.createElement("div");
+        identity.className = "player-identity";
+        identity.replaceChildren(avatar, details);
+        const victories = document.createElement("ol");
+        victories.className = "player-victories";
+        victories.setAttribute("aria-label", `${name}'s three closest win conditions, closest first`);
+        victories.replaceChildren(...getPlayerVictoryProgress(player).slice(0, 3).map(condition => {
+            const item = document.createElement("li");
+            const ring = document.createElement("span");
+            ring.className = "victory-ring";
+            ring.style.setProperty("--victory-progress", `${condition.progress * 360}deg`);
+            ring.setAttribute("role", "progressbar");
+            ring.setAttribute("tabindex", "0");
+            ring.setAttribute("aria-label", condition.name);
+            ring.setAttribute("aria-valuemin", "0");
+            ring.setAttribute("aria-valuemax", "100");
+            ring.setAttribute("aria-valuenow", String(Math.round(condition.progress * 100)));
+            ring.setAttribute("aria-valuetext", condition.detail);
+            const icon = document.createElement("span");
+            icon.className = "victory-icon";
+            icon.textContent = condition.name.split(" ")[0];
+            icon.setAttribute("aria-hidden", "true");
+            ring.replaceChildren(icon);
+            const tooltip = document.createElement("span");
+            tooltip.className = "victory-tooltip";
+            tooltip.setAttribute("role", "tooltip");
+            tooltip.id = `victory-${player.color}-${condition.name.split(" ")[1].toLowerCase()}`;
+            ring.setAttribute("aria-describedby", tooltip.id);
+            const title = document.createElement("strong");
+            title.textContent = condition.name;
+            const detail = document.createElement("span");
+            detail.textContent = condition.detail;
+            tooltip.replaceChildren(title, detail);
+            item.replaceChildren(ring, tooltip);
+            return item;
+        }));
+        card.replaceChildren(identity);
+        row.replaceChildren(card, victories);
+        return row;
     });
     roster.replaceChildren(...cards);
 }
@@ -1651,12 +1779,12 @@ function collectPayout() {
 }
 
 function gameIsOver() {
-    return normalMode && playerStates.some(player => player.eliminated) &&
-        playerStates.filter(player => !player.eliminated).length <= 1;
+    return normalMode && (victory?.status === "finished" || (playerStates.some(player => player.eliminated) &&
+        playerStates.filter(player => !player.eliminated).length <= 1));
 }
 
 function canAct() {
-    return !wildfireActive && !gameIsOver() && !(normalMode && playerStates.find(player => player.color === selectedColor)?.eliminated) &&
+    return victory?.status !== "pending" && !wildfireActive && !gameIsOver() && !(normalMode && playerStates.find(player => player.color === selectedColor)?.eliminated) &&
         (!isBotTurn() || performingBotAction);
 }
 
@@ -1718,13 +1846,13 @@ function isBotTurn() {
 
 function scheduleBotTurn() {
     const version = ++botTurnVersion;
-    if (!gameStarted || wildfireActive || !isBotTurn() || gameIsOver()) return;
+    if (!gameStarted || wildfireActive || victory?.status === "pending" || !isBotTurn() || gameIsOver()) return;
     let actions = 0;
     let planted = false;
     let composted = false;
     let expanded = false;
     const step = () => {
-        if (version !== botTurnVersion || !gameStarted || wildfireActive || !isBotTurn() || gameIsOver()) return;
+        if (version !== botTurnVersion || !gameStarted || wildfireActive || victory?.status === "pending" || !isBotTurn() || gameIsOver()) return;
         performingBotAction = true;
         try {
             const trees = plantedSeeds.filter(canManageTree);
@@ -1852,6 +1980,7 @@ document.querySelector(".tutorial-done-next").addEventListener("click", () => {
 function continueGame() {
     if (!savedGameData || !isValidSaveData(savedGameData)) return;
 
+    victory = savedGameData.victory ? { ...savedGameData.victory } : null;
     normalMode = savedGameData.normalMode ?? getSavedStartingTileCount(savedGameData) !== 1;
     naturalExpansion = savedGameData.naturalExpansion === true;
     disasterTurns = Number.isInteger(savedGameData.disasterTurns)
@@ -1922,6 +2051,8 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     clockSpeed = 1;
     clockPaused = false;
     savedGameData = null;
+    victory = null;
+    if (victoryDialog.open) victoryDialog.close();
     gameStarted = false;
     moneyInCents = startingMoneyInCents;
     disasterTurns = 0;
