@@ -1812,10 +1812,12 @@ function plantOnTile(q, r) {
     }
     const type = plantingSeedType;
     const cost = type === "oak" ? oakSeedCostInCents : seedCostInCents;
-    if (moneyInCents < cost) return;
-    plantingSeedType = null;
+    if (moneyInCents < cost) {
+        payoutStatus.textContent = "Not enough leaves to plant. Press Escape to cancel.";
+        return;
+    }
     plantSeed(type, {q,r});
-    payoutStatus.textContent = "Seed planted.";
+    payoutStatus.textContent = "Seed planted. Choose another tile, or press Escape to cancel.";
 }
 
 function updatePlantingHighlights() {

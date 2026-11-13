@@ -44,7 +44,9 @@ function game(saved = null) {
             createElement: () => new Element(),
             createElementNS: () => new Element(),
         },
-        window: { addEventListener() {}, setInterval() {}, setTimeout() {}, innerWidth: 1000, innerHeight: 800 },
+        window: { events: {}, addEventListener(type, callback) {
+            (this.events[type] ??= []).push(callback);
+        }, setInterval() {}, setTimeout() {}, innerWidth: 1000, innerHeight: 800 },
         localStorage: {
             getItem: key => storage.get(key) ?? null,
             setItem: (key, value) => storage.set(key, value),
@@ -64,7 +66,7 @@ function game(saved = null) {
 function plantViaButton(session, type) {
     session.run("gameStarted = true");
     session.elements.get(`.plant-${type}-button`).events.click();
-    session.run('if (plantingSeedType) { const tile = getPlantingTargets()[0]; if (tile) plantOnTile(tile.q, tile.r); }');
+    session.run('if (plantingSeedType) { const tile = getPlantingTargets()[0]; if (tile) plantOnTile(tile.q, tile.r); } window.events.keydown.forEach(callback => callback({key: "Escape"}));');
 }
 
 const g = game();
@@ -1485,7 +1487,7 @@ for (const expansionMode of [false, true]) {
         assert.equal(targeted.run('moneyInCents'), 1000);
         assert.equal(targeted.run('plantedSeeds.length'), 3);
         targeted.run('purchaseTileElements.get(window.targetKey).events.keydown({key: "Enter", preventDefault() {}})');
-        assert.equal(targeted.run('plantingSeedType'), null);
+        assert.equal(targeted.run('plantingSeedType'), species);
         assert.equal(targeted.run('moneyInCents'), species === 'oak' ? 700 : 900);
         assert.equal(targeted.run('getBoardTileColor(window.target.q,window.target.r)'), 'green');
         assert.equal(targeted.run(`plantedSeeds.some(seed => seed.tile.q === window.target.q && seed.tile.r === window.target.r && seed.treeType === '${species}' && seed.stageIndex === 0)`), true);
@@ -1517,3 +1519,22 @@ assert.equal(freeExpansionBot.run('purchasedTileCoordinates.length'), 1);
 assert.equal(freeExpansionBot.run('purchasedTileCoordinates[0].color'), 'yellow');
 assert.equal(freeExpansionBot.run('plantedSeeds.length'), 4);
 console.log('Seed buttons wait for a chosen tile; planting claims adjacent grey land for only the seed cost, rejects invalid targets, saves ownership, and lets bots expand without 25 leaves.');
+
+const continuousPlanting = game();
+continuousPlanting.run(`Math.random = () => 0.5; moneyInCents = 200; startNewGame(false, 'green', false, 'maple', true)`);
+continuousPlanting.elements.get('.plant-maple-button').events.click();
+for (let index = 0; index < 2; index++) {
+    continuousPlanting.run('{ const {q,r} = getPlantingTargets()[0]; purchaseTileElements.get(getTileKey(q,r)).events.click(); }');
+    assert.equal(continuousPlanting.run('plantingSeedType'), 'maple');
+    assert.equal(continuousPlanting.run('plantedSeeds.length'), 4 + index);
+    assert.equal(continuousPlanting.run('moneyInCents'), 100 - index * 100);
+}
+continuousPlanting.run('{ const {q,r} = getPlantingTargets()[0]; plantOnTile(q,r); }');
+assert.equal(continuousPlanting.run('moneyInCents'), 0);
+assert.equal(continuousPlanting.run('plantedSeeds.length'), 5);
+assert.equal(continuousPlanting.run('plantingSeedType'), 'maple');
+continuousPlanting.run('window.events.keydown.forEach(callback => callback({key: "Escape"}))');
+assert.equal(continuousPlanting.run('plantingSeedType'), null);
+assert.equal(continuousPlanting.elements.get('.plant-maple-button').getAttribute('aria-pressed'), 'false');
+assert.equal(continuousPlanting.run('[...purchaseTileElements.values()].every(tile => tile.getAttribute("data-plantable") === "false")'), true);
+console.log('Planting remains active across placements and insufficient funds; Escape clears selection and highlights.');
