@@ -27,16 +27,33 @@
       </div>
       <button class="next-level-button" type="button" hidden>Next Level</button>
     </div>
-    <div class="level-details">
-      <p class="level-objective"></p>
-      <p class="level-progress-text"></p>
-      <p class="level-notification" role="status" aria-live="polite" hidden></p>
-    </div>
     <div class="money-counter" aria-label="Leaves">
       <img class="currency-icon balance-icon" src="images/leaf.png" alt="Leaves" width="32" height="32" />
       <output class="money-amount" aria-live="polite">5</output>
       <output class="compost-reward" role="status" hidden></output>
     </div>
+    <aside class="daylight-clock" hidden aria-label="Day and night cycle">
+      <span class="daylight-label">Daylight</span>
+      <span class="daylight-status" aria-live="polite">Day</span>
+      <span class="clock-face" role="img"
+        aria-label="One-minute day and night cycle with payouts at sunrise and sunset.">
+        <span class="clock-dial" aria-hidden="true">
+          <span class="clock-tick sunrise-earning"></span>
+          <span class="clock-tick sunset-earning"></span>
+        </span>
+        <span class="clock-markers" aria-hidden="true">
+          <span class="clock-marker sun-marker">☾</span>
+          <span class="clock-marker moon-marker">☀</span>
+        </span>
+        <span class="clock-current-time-tick" aria-hidden="true"></span>
+      </span>
+      <div class="clock-controls" aria-label="Daylight clock controls">
+        <button class="clock-control pause-clock" type="button" aria-label="Pause daylight clock"
+          aria-pressed="false" title="Pause">⏸</button>
+        <button class="clock-control speed-toggle" type="button" aria-label="Triple daylight clock speed"
+          aria-pressed="false" title="Triple speed">▶▶</button>
+      </div>
+    </aside>
     <aside class="payout-controls" aria-label="Tree income">
       <div class="tutorial-plant-prompt tutorial-done-prompt" hidden>
         <p>Click Done to collect leaves from all your trees. Upgrade trees to earn more with every click!</p>
@@ -50,6 +67,11 @@
     </aside>
   </header>
   <output class="save-status" role="status" aria-live="polite"></output>
+  <div class="level-details">
+    <p class="level-objective"></p>
+    <p class="level-progress-text"></p>
+    <p class="level-notification" role="status" aria-live="polite" hidden></p>
+  </div>
   <main aria-label="Hexagon game board">
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
       <g class="hex-tiles"></g>

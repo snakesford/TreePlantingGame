@@ -47,7 +47,9 @@ body {
 }
 
 .level-details {
-    flex: 0 0 100%;
+    width: min(100% - 40px, 720px);
+    margin: 20px auto;
+    text-align: center;
     color: #244c2c;
     font: 0.9rem/1.5 sans-serif;
 }
@@ -854,3 +856,175 @@ main {
 .setup-preview[data-shape="triangle"] .setup-preview-seed { width: 45%; height: 45%; transform: translateY(25%); }
 .setup-preview[data-shape="rectangle"] .setup-preview-seed { height: 55%; }
 [data-shape="hexagon"] { --marker-shape: polygon(50.000% 0.000%, 93.301% 25.000%, 93.301% 75.000%, 50.000% 100.000%, 6.699% 75.000%, 6.699% 25.000%); }
+
+.daylight-clock {
+    display: grid;
+    grid-template-columns: auto 88px auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 14px;
+    padding: 12px 14px 12px 18px;
+    border-radius: 16px;
+    background: #fff;
+    color: #32663c;
+    font-family: sans-serif;
+}
+
+.daylight-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.daylight-status {
+    font-size: 0.8rem;
+    color: #6d786e;
+}
+
+.clock-face {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    position: relative;
+    width: 88px;
+    height: 88px;
+    border: 2px solid #d6e5bb;
+    border-radius: 50%;
+}
+
+.clock-controls {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.clock-control {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 8px;
+    border: 1px solid #d6e5bb;
+    border-radius: 6px;
+    background: #f4f6f1;
+    color: #32663c;
+    font: 600 0.9rem/1 sans-serif;
+    cursor: pointer;
+}
+
+.clock-control:hover {
+    background: #e4ecd9;
+}
+
+.clock-control[aria-pressed="true"] {
+    border-color: #32663c;
+    background: #c6d9b8;
+    box-shadow: inset 0 0 0 1px #32663c;
+}
+
+.clock-control:focus-visible {
+    outline: 2px solid #32663c;
+    outline-offset: 2px;
+}
+
+.clock-dial {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    background: conic-gradient(
+        from 0deg,
+        #f3c75e 0deg 180deg,
+        #444 180deg 360deg
+    );
+    transform: rotate(var(--clock-rotation, 0deg));
+}
+
+.clock-markers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transform: rotate(var(--clock-rotation, 0deg));
+}
+
+.clock-current-time-tick {
+    position: absolute;
+    z-index: 3;
+    top: -3px;
+    left: calc(50% - 2px);
+    width: 4px;
+    height: 10px;
+    border-radius: 2px;
+    background: #32663c;
+}
+
+.clock-marker {
+    position: absolute;
+    z-index: 1;
+    color: #32663c;
+    font: 18px/1 sans-serif;
+}
+
+.clock-tick {
+    position: absolute;
+    z-index: 2;
+    top: 0;
+    left: calc(50% - 1px);
+    width: 2px;
+    height: 8px;
+    border-radius: 1px;
+    background: #32663c;
+    transform-origin: 1px 43px;
+}
+
+.sunrise-earning {
+    transform: rotate(0deg);
+}
+
+.sunset-earning {
+    transform: rotate(180deg);
+}
+
+.sun-marker {
+    top: 50%;
+    left: -7px;
+    transform: translate(-50%, -50%);
+}
+
+.moon-marker {
+    top: 50%;
+    right: -7px;
+    transform: translate(50%, -50%);
+}
+
+
+.daylight-clock[hidden], .done-button[hidden] { display: none; }
+
+/* Keep the level clock at the screen edge with a comfortable gutter. */
+.top-bar:has(.daylight-clock:not([hidden])) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    width: calc(100% - 40px);
+    padding-left: 60px;
+    padding-right: env(safe-area-inset-right, 0px);
+    align-items: start;
+}
+.top-bar:has(.daylight-clock:not([hidden])) .game-menu { left: 0; }
+.top-bar:has(.daylight-clock:not([hidden])) .level-row {
+    grid-column: 1 / -1;
+    width: min(100%, 720px);
+    justify-self: center;
+}
+.top-bar:has(.daylight-clock:not([hidden])) .money-counter { justify-self: start; }
+.top-bar:has(.daylight-clock:not([hidden])) .payout-controls { grid-column: 2; grid-row: 2; }
+.top-bar:has(.daylight-clock:not([hidden])) .daylight-clock { grid-column: 3; grid-row: 2; justify-self: end; }
+@media (max-width: 700px) {
+    .top-bar:has(.daylight-clock:not([hidden])) { grid-template-columns: minmax(0, 1fr) auto; padding-left: 0; }
+    .top-bar:has(.daylight-clock:not([hidden])) .level-row { width: calc(100% - 60px); justify-self: end; }
+    .top-bar:has(.daylight-clock:not([hidden])) .daylight-clock { grid-column: 2; }
+    .top-bar:has(.daylight-clock:not([hidden])) .payout-controls { grid-column: 1 / -1; grid-row: 3; }
+    .daylight-clock { grid-template-columns: auto 88px auto; column-gap: 8px; padding: 10px; }
+}
+@media (max-width: 400px) {
+    .top-bar:has(.daylight-clock:not([hidden])) .daylight-clock { grid-column: 1 / -1; grid-row: 3; }
+    .top-bar:has(.daylight-clock:not([hidden])) .payout-controls { grid-row: 4; }
+}

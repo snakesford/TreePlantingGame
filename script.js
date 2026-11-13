@@ -46,6 +46,68 @@ const plantSpruceButton = document.querySelector(".plant-spruce-button");
 const plantOakButton = document.querySelector(".plant-oak-button");
 const buyTileButton = document.querySelector(".buy-tile-button");
 const doneButton = document.querySelector(".done-button");
+const daylightClock = document.querySelector(".daylight-clock");
+const daylightStatus = document.querySelector(".daylight-status");
+const clockFace = document.querySelector(".clock-face");
+const pauseClockButton = document.querySelector(".pause-clock");
+const clockSpeedButton = document.querySelector(".speed-toggle");
+const dayCycleDuration = 60000;
+let elapsedCycleTime = 0;
+let clockSpeed = 1;
+let clockPaused = false;
+let previousFrameTime = null;
+let clockLoopStarted = false;
+
+function usesLevelClock() {
+    return !normalMode && startingTileCount !== 1;
+}
+
+function renderLevelClock() {
+    const position = elapsedCycleTime % dayCycleDuration;
+    const status = position < dayCycleDuration / 2 ? "Day" : "Night";
+    daylightClock.hidden = !usesLevelClock();
+    daylightStatus.textContent = status;
+    daylightClock.setAttribute("aria-label", `Day and night cycle: ${status}`);
+    clockFace.style.setProperty("--clock-rotation", `${-position / dayCycleDuration * 360}deg`);
+    pauseClockButton.textContent = clockPaused ? "▶" : "⏸";
+    pauseClockButton.setAttribute("aria-label", `${clockPaused ? "Resume" : "Pause"} daylight clock`);
+    pauseClockButton.setAttribute("aria-pressed", String(clockPaused));
+    pauseClockButton.title = clockPaused ? "Resume" : "Pause";
+    clockSpeedButton.setAttribute("aria-pressed", String(clockSpeed === 3));
+}
+
+function updateDaylightClock(frameTime) {
+    const delta = previousFrameTime === null ? 0 : Math.max(0, frameTime - previousFrameTime);
+    previousFrameTime = frameTime;
+    if (gameStarted && usesLevelClock() && !clockPaused) {
+        const previous = elapsedCycleTime;
+        elapsedCycleTime += delta * clockSpeed;
+        const payouts = Math.floor(elapsedCycleTime / 30000) - Math.floor(previous / 30000);
+        if (payouts > 0) {
+            const income = payouts * getCurrentPlayerIncome();
+            moneyInCents += income;
+            payoutStatus.textContent = `${elapsedCycleTime % dayCycleDuration < 30000 ? "Dawn" : "Dusk"}: collected ${(income / 100).toFixed(2)} leaves.`;
+            updateMoneyDisplay();
+            saveGame();
+        }
+    }
+    renderLevelClock();
+    requestAnimationFrame(updateDaylightClock);
+}
+
+pauseClockButton.addEventListener("click", () => {
+    clockPaused = !clockPaused;
+    previousFrameTime = performance.now();
+    renderLevelClock();
+    saveGame();
+});
+clockSpeedButton.addEventListener("click", () => {
+    clockSpeed = clockSpeed === 3 ? 1 : 3;
+    previousFrameTime = performance.now();
+    renderLevelClock();
+    saveGame();
+});
+
 const payoutAmount = document.querySelector(".payout-amount");
 const payoutStatus = document.querySelector(".payout-status");
 const payoutControls = document.querySelector(".payout-controls");
@@ -319,6 +381,9 @@ function saveGame() {
         humanColor,
         selectedSeedType,
         selectedShape,
+        elapsedCycleTime,
+        clockSpeed,
+        clockPaused,
         normalMode,
         activeBoardColors,
         playerStates,
@@ -426,6 +491,9 @@ function isValidSaveData(data) {
             !(data.activeBoardColors ?? [data.selectedColor]).includes(data.humanColor))) ||
         (data.selectedSeedType != null && !["maple", "birch", "spruce", "oak"].includes(data.selectedSeedType)) ||
         (data.selectedShape !== undefined && !playerShapes.includes(data.selectedShape) && !legacyPlayerShapes.includes(data.selectedShape)) ||
+        (data.elapsedCycleTime !== undefined && (!Number.isFinite(data.elapsedCycleTime) || data.elapsedCycleTime < 0)) ||
+        (data.clockSpeed !== undefined && ![1, 3].includes(data.clockSpeed)) ||
+        (data.clockPaused !== undefined && typeof data.clockPaused !== "boolean") ||
         (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
         (data.selectedColor != null && !["red", "green", "yellow"].includes(data.selectedColor)) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
@@ -658,7 +726,9 @@ function updateMoneyDisplay() {
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
     turnIndicator.setAttribute("data-shape", selectedColor === humanColor ? selectedShape : "circle");
     updatePurchaseTiles();
-    payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
+    doneButton.hidden = usesLevelClock();
+    renderLevelClock();
+    payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves ${usesLevelClock() ? "at dawn and dusk" : "per click"}`;
     doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
 }
 
@@ -1214,9 +1284,8 @@ function updateSeedDialog() {
     seedPreviewImage.src = stage.image;
     seedPreviewImage.alt = stage.name;
     const earningPerPayout = (stage.earningInCents / 100).toFixed(2);
-    showLeafAmount(seedDescription, earningPerPayout, "Earns ", isFullyGrown
-        ? " each time you click Done."
-        : " each time you click Done. Click the tree to upgrade.");
+    const payoutTiming = usesLevelClock() ? " at dawn and dusk." : " each time you click Done.";
+    showLeafAmount(seedDescription, earningPerPayout, "Earns ", payoutTiming + (isFullyGrown ? "" : " Click the tree to upgrade."));
     const requiredUpgrades = getUpgradesPerStage(selectedSeed);
     seedProgressBar.max = requiredUpgrades;
     const displayedUpgrades = isFullyGrown
@@ -1312,6 +1381,7 @@ function initializePlayers() {
 }
 
 function collectPayout() {
+    if (usesLevelClock()) return;
     if (!canAct()) return;
     if (!gameStarted) return;
     const income = getCurrentPlayerIncome();
@@ -1457,6 +1527,12 @@ doneButton.addEventListener("click", collectPayout);
 
 function startGame() {
     gameStarted = true;
+    previousFrameTime = performance.now();
+    if (!clockLoopStarted) {
+        clockLoopStarted = true;
+        requestAnimationFrame(updateDaylightClock);
+        window.setInterval(saveGame, 1000);
+    }
     updateMoneyDisplay();
     saveSlotDialog.close();
     if (startingTileCount === 1 && tutorialCompleted) tutorialCompleteDialog.showModal();
@@ -1521,6 +1597,9 @@ function continueGame() {
     humanColor = savedGameData.humanColor ?? selectedColor;
     activeBoardColors = savedGameData.activeBoardColors ?? null;
     playerCount = activeBoardColors?.length ?? 3;
+    elapsedCycleTime = savedGameData.elapsedCycleTime ?? 0;
+    clockSpeed = savedGameData.clockSpeed ?? 1;
+    clockPaused = savedGameData.clockPaused ?? false;
     moneyInCents = savedGameData.moneyInCents;
     tutorialCompleted = savedGameData.tutorialCompleted === true;
     currentLevel = savedGameData.currentLevel ?? 1;
@@ -1564,6 +1643,9 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
         console.error("Could not clear previous saved game.", error);
     }
 
+    elapsedCycleTime = 0;
+    clockSpeed = 1;
+    clockPaused = false;
     savedGameData = null;
     playerStates = [];
     tileOwnership.clear();
