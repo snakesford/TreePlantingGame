@@ -1061,6 +1061,7 @@ function addTileObstacle(q, r, obstacleType = null) {
 
 function isObstacleVisible({ q, r }) {
     if (!normalMode) return true;
+    if (playerStates.find(player => player.color === humanColor)?.eliminated) return true;
     const owner = humanColor ?? selectedColor;
     const ownedByHuman = (q, r) => boardTileKeys.has(getTileKey(q, r)) && getBoardTileColor(q, r) === owner;
     return ownedByHuman(q, r) || tileNeighborOffsets.some(([dq, dr]) => ownedByHuman(q + dq, r + dr));

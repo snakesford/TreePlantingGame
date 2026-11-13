@@ -1310,6 +1310,22 @@ invalidFog.obstacles.push({q: 6, r: 0, type: 'rock'});
 assert.equal(game(JSON.stringify(invalidFog)).run('gameStarted'), false);
 console.log('Grey obstacles stay hidden until adjacent, reveal on expansion, require purchase before clearing, block planting, and persist without rerolling.');
 
+const spectatorBoard = game();
+spectatorBoard.run(`Math.random = () => 0; startNewGame(false, 'green', false, 'maple');`);
+assert.equal(spectatorBoard.run('tileObstacles.get("5,0").element.style.display'), 'none');
+spectatorBoard.run('forfeitPlayer()');
+function assertSpectatorBoardVisible(session) {
+    assert.ok(session.run('tileObstacles.size > 0'));
+    assert.equal(session.run('[...tileObstacles.values()].every(obstacle => isObstacleVisible(obstacle) && obstacle.element.style.display === "" && obstacle.element.getAttribute("aria-hidden") === "false" && obstacle.element.getAttribute("tabindex") === "0")'), true);
+    const saved = session.storage.get('tree-planting-game-save');
+    session.run('activateObstacle(5,0); clearTileObstacle(5,0); purchaseTile(5,0)');
+    assert.equal(session.storage.get('tree-planting-game-save'), saved, 'Revealing obstacles does not let spectators change the board');
+}
+assertSpectatorBoardVisible(spectatorBoard);
+const spectatorBoardResume = game(spectatorBoard.storage.get('tree-planting-game-save'));
+assertSpectatorBoardVisible(spectatorBoardResume);
+console.log('Spectators see every obstacle immediately and after reload, without gaining board actions.');
+
 const expandingBot = game();
 expandingBot.run(`Math.random = () => 0; startNewGame(false, 'green', false, 'maple'); moneyInCents = 1000; syncCurrentPlayer(); updateMoneyDisplay();
     playerStates.find(player => player.color === 'yellow').moneyInCents = 4000;
