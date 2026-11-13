@@ -1124,6 +1124,33 @@ main {
     display: none;
 }
 
+.player-sidebar {
+    display: grid;
+    gap: 16px;
+}
+.player-sidebar[hidden] { display: none; }
+.player-identity { display: grid; justify-items: center; gap: 6px; min-width: 70px; text-align: center; }
+.player-victories { display: grid; justify-items: center; gap: 8px; list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
+.victory-ring {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    padding: 4px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, #32663c 0deg var(--victory-progress, 0deg), #cbd8c3 var(--victory-progress, 0deg) 360deg);
+}
+.victory-icon {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #e6ecdf;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
 .player-roster {
     width: 100%;
     margin: 0;
@@ -1135,22 +1162,24 @@ main {
     list-style: none;
 }
 .player-roster[hidden] { display: none; }
+.player-row { display: grid; grid-template-columns: minmax(0, 1fr) 46px; align-items: center; gap: 16px; }
+.player-row[data-eliminated="true"] { opacity: 0.6; }
 .player-card {
     display: flex;
+    justify-content: center;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 14px 16px;
     border: 2px solid transparent;
     border-radius: 14px;
     background: #e6ecdf;
     color: #244c2c;
-    font: 0.85rem/1.4 sans-serif;
+    font: 0.95rem/1.4 sans-serif;
 }
 .player-card[data-active="true"] { border-color: #32663c; }
-.player-card[data-eliminated="true"] { opacity: 0.6; }
 .player-avatar {
-    width: 80px;
-    height: 80px;
+    width: 88px;
+    height: 88px;
     flex-shrink: 0;
     border-radius: 50%;
     border: 2px solid rgb(0 0 0 / 12%);
@@ -1165,40 +1194,54 @@ main {
 .player-earnings { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
 
 main:has(.player-roster:not([hidden])) {
-    --roster-width: 240px;
+    --roster-width: 280px;
     width: 100%;
     padding-inline: 8px;
     grid-template-columns: minmax(var(--roster-width), 1fr) minmax(0, 720px) minmax(var(--roster-width), 1fr);
     column-gap: 12px;
-    align-items: start;
+    align-items: center;
+    justify-content: center;
 }
-main:has(.player-roster:not([hidden])) .player-roster {
+main:has(.player-roster:not([hidden])) .player-sidebar {
     grid-column: 1;
     grid-row: 1;
     width: var(--roster-width);
     justify-self: start;
+    align-self: center;
 }
 main:has(.player-roster:not([hidden])) .hex-board {
     grid-column: 2;
     grid-row: 1;
     width: 100%;
 }
-@media (max-width: 1100px) {
-    main:has(.player-roster:not([hidden])) {
-        --roster-width: 96px;
-        column-gap: 8px;
+/* Center the board in the viewport independently of the header and player roster. */
+@media (min-width: 701px) and (min-height: 700px) {
+    main:has(.player-roster:not([hidden])) .player-sidebar {
+        position: fixed;
+        left: 8px;
+        top: 50%;
+        transform: translateY(-50%);
     }
-    .player-card {
-        flex-direction: column;
-        gap: 5px;
-        padding: 8px 4px;
-        font-size: 0.72rem;
-        text-align: center;
+    main:has(.player-roster:not([hidden])) .hex-board {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(720px, calc(100vw - 2 * var(--roster-width) - 40px), calc(100svh - 320px));
+        max-height: calc(100svh - 320px);
     }
-    .player-earnings { gap: 2px; justify-content: center; flex-wrap: wrap; }
 }
-@media (max-width: 600px) {
-    .player-avatar { width: 64px; height: 64px; }
+@media (max-width: 1100px) {
+    main:has(.player-roster:not([hidden])) { --roster-width: 250px; }
+    .player-card { padding: 12px; }
+    .player-avatar { width: 80px; height: 80px; }
+    .player-identity { min-width: 80px; font-size: 0.85rem; }
+    .player-earnings { justify-content: center; flex-wrap: wrap; }
+}
+@media (max-width: 700px) {
+    main:has(.player-roster:not([hidden])) { grid-template-columns: minmax(0, 1fr); row-gap: 16px; }
+    main:has(.player-roster:not([hidden])) .player-sidebar { width: min(100%, var(--roster-width)); }
+    main:has(.player-roster:not([hidden])) .hex-board { grid-column: 1; grid-row: 2; }
 }
 
 /* Shared player palette for selection and gameplay. */
@@ -1217,6 +1260,41 @@ main:has(.player-roster:not([hidden])) .hex-board {
 .tile-body[data-color]:not([data-color="grey"]) .tile-surface { fill: var(--player-fill, #f2cf65); }
 .turn-indicator[data-color] { color: var(--player-ink, #705508); }
 
+
+.victory-dialog { width: min(420px, calc(100% - 32px)); text-align: center; border: 2px solid #32663c; border-radius: 18px; padding: 28px; background: #edf2e7; color: #244c2c; }
+.victory-dialog::backdrop { background: rgb(20 35 20 / 55%); }
+.victory-dialog h2 { margin-top: 0; }
+.victory-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 22px; }
+.victory-actions button { padding: 12px 18px; border: 0; border-radius: 10px; color: white; font: bold 1rem sans-serif; cursor: pointer; }
+.victory-continue { background: #32663c; }
+.victory-continue:hover { background: #244c2c; }
+.victory-finish { background: #b43e36; }
+.victory-finish:hover { background: #8f2e28; }
+.victory-actions button:focus-visible { outline: 3px solid #244c2c; outline-offset: 3px; }
+
+.player-victories > li { position: relative; }
+.victory-ring:focus-visible { outline: 2px solid #244c2c; outline-offset: 3px; }
+.victory-tooltip {
+    display: none;
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    z-index: 20;
+    width: 220px;
+    max-width: calc(100vw - 32px);
+    padding: 10px 12px;
+    border: 1px solid #cbd8c3;
+    border-radius: 10px;
+    background: #f5f8ef;
+    color: #244c2c;
+    box-shadow: 0 4px 14px rgb(20 35 20 / 18%);
+    font: 0.8rem/1.4 sans-serif;
+    text-align: left;
+}
+.victory-tooltip strong, .victory-tooltip > span { display: block; }
+.victory-tooltip > span { margin-top: 4px; color: #50634b; }
+.player-victories > li:hover .victory-tooltip,
+.player-victories > li:focus-within .victory-tooltip { display: block; }
 .tile-body[data-broken="true"] { cursor: not-allowed; }
 .tile-body[data-broken="true"] .tile-surface { fill: #9b9b94; }
 .tile-cracks { fill: none; stroke: #41423e; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
