@@ -1180,8 +1180,7 @@ for (const color of ['green', 'yellow', 'red']) {
     const expansion = game();
     expansion.run(`moneyInCents = 5000; startNewGame(false, '${color}', false, 'maple')`);
     assert.ok(expansion.run('purchaseTileElements.size') > 0);
-    assert.equal(expansion.run(`getPurchaseCandidates().every(({q, r}) => !boardTileKeys.has(getTileKey(q, r)) &&
-        tileNeighborOffsets.some(([dq, dr]) => boardTileKeys.has(getTileKey(q + dq, r + dr)) && getBoardTileColor(q + dq, r + dr) === humanColor))`), true);
+    assert.equal(expansion.run(`getPurchaseCandidates().every(({q, r}) => !boardTileKeys.has(getTileKey(q, r)) && Math.max(Math.abs(q), Math.abs(r), Math.abs(q+r)) <= 5)`), true);
     expansion.run('window.targetHex = getPurchaseCandidates()[0]; window.oldHex = purchaseTileElements.get(getTileKey(window.targetHex.q, window.targetHex.r)); window.oldHex.events.click()');
     assert.equal(expansion.run('moneyInCents'), 2500);
     assert.equal(expansion.run('getBoardTileColor(window.targetHex.q, window.targetHex.r)'), color);
@@ -1202,7 +1201,7 @@ for (const color of ['green', 'yellow', 'red']) {
     expansion.run('startNewGame(true)');
     assert.equal(expansion.run('purchaseTileElements.size'), 0);
 }
-console.log('Grey expansion hexes purchase the selected space for 25 leaves, enforce adjacency and affordability, support keyboard input, and persist ownership.');
+console.log('Grey expansion hexes purchase the selected space for 25 leaves, enforce affordability, support keyboard input, and persist ownership.');
 
 for (const count of [1, 2, 3]) {
     const largeBoard = game();
@@ -1211,10 +1210,10 @@ for (const count of [1, 2, 3]) {
     assert.equal(largeBoard.run('getGreyTileCoordinates().filter(tile => tile.q === 5).length'), 6);
     assert.equal(largeBoard.run('getGreyTileCoordinates().filter(tile => tile.r === -5).length'), 6);
     largeBoard.run('purchaseTileElements.get("5,0").events.click()');
-    assert.equal(largeBoard.run('moneyInCents'), 5000);
+    assert.equal(largeBoard.run('moneyInCents'), 2500);
     largeBoard.run('{ const {q, r} = getPurchaseCandidates()[0]; purchaseTile(q, r); }');
     assert.equal(largeBoard.run('purchaseTileElements.size + boardTileKeys.size'), 91);
-    assert.equal(largeBoard.run('moneyInCents'), 2500);
+    assert.equal(largeBoard.run('moneyInCents'), 0);
     const loaded = game(largeBoard.storage.get('tree-planting-game-save'));
     assert.equal(loaded.run('purchaseTileElements.size + boardTileKeys.size'), 91);
     largeBoard.run('collectPayout()');
@@ -1230,7 +1229,7 @@ assert.equal(fog.run('tileObstacles.get("5,0").element.getAttribute("tabindex")'
 fog.run('openObstacleDialog("5,0"); activateObstacle(5,0); clearTileObstacle(5,0)');
 assert.notEqual(fog.elements.get('.obstacle-dialog').open, true);
 assert.equal(fog.run('moneyInCents'), 20000);
-fog.run('window.near = getPurchaseCandidates()[0]; window.nearKey = getTileKey(window.near.q, window.near.r)');
+fog.run('window.near = getPurchaseCandidates().find(tile => isObstacleVisible(tile)); window.nearKey = getTileKey(window.near.q, window.near.r)');
 assert.equal(fog.run('tileObstacles.get(window.nearKey).element.style.display'), '');
 fog.run('window.hiddenBefore = [...tileObstacles.values()].filter(obstacle => !isObstacleVisible(obstacle)).map(({q,r}) => getTileKey(q,r)); activateObstacle(window.near.q, window.near.r)');
 assert.equal(fog.run('moneyInCents'), 17500);
@@ -1340,3 +1339,56 @@ finishBotTurns(treeBuyerBot);
 assert.equal(treeBuyerBot.run('playerStates.find(player => player.color === "yellow").moneyInCents'), treeBuyerBot.run('window.beforeIncome + 600'));
 assert.equal(treeBuyerBot.run('getCurrentPlayerIncome()'), 100);
 console.log('Bots acquire tree obstacles for just the tile price and receive their income without paying removal costs.');
+
+const forfeitGame = game();
+forfeitGame.run(`Math.random = () => 0.5; moneyInCents = 5000; startNewGame(false, 'green', false, 'maple');
+    purchaseTile(5,0); window.humanTree = plantedSeeds.find(canManageTree); window.humanTile = window.humanTree.tile;`);
+installBotClock(forfeitGame);
+forfeitGame.elements.get('.forfeit-button').events.click();
+assert.equal(forfeitGame.run('playerStates.find(player => player.color === "green").eliminated'), true);
+assert.equal(forfeitGame.run('selectedColor'), 'yellow');
+assert.equal(forfeitGame.run('getBoardTileColor(5,0)'), 'grey');
+assert.equal(forfeitGame.run('boardTileCoordinates.filter(({q,r}) => getBoardTileColor(q,r) === "grey").length'), 8);
+assert.equal(forfeitGame.run('tileElements.get("5,0").getAttribute("data-color")'), 'grey');
+assert.equal(forfeitGame.elements.get('.forfeit-button').disabled, true);
+assert.match(forfeitGame.elements.get('.turn-indicator').textContent, /Spectating/);
+const spectatorSave = forfeitGame.storage.get('tree-planting-game-save');
+forfeitGame.run('plantSeed(); collectPayout(); upgradeSeed(window.humanTree); compostTree(window.humanTree); purchaseTile(4,0); forfeitPlayer()');
+assert.equal(forfeitGame.storage.get('tree-planting-game-save'), spectatorSave, 'Spectators cannot act for the bots');
+const spectatorResume = game(spectatorSave);
+assert.equal(spectatorResume.run('gameStarted'), true);
+assert.equal(spectatorResume.run('getBoardTileColor(5,0)'), 'grey');
+assert.equal(spectatorResume.run('playerStates.find(player => player.color === "green").eliminated'), true);
+assert.match(spectatorResume.elements.get('.turn-indicator').textContent, /Spectating/);
+forfeitGame.run(`performingBotAction = true; moneyInCents = 5000;
+    purchaseTile(window.humanTile.q, window.humanTile.r); collectPayout(); collectPayout(); performingBotAction = false;`);
+assert.equal(forfeitGame.run('selectedColor'), 'yellow', 'Turns skip the eliminated human');
+assert.equal(forfeitGame.run('getBoardTileColor(window.humanTile.q, window.humanTile.r)'), 'yellow');
+assert.equal(forfeitGame.run('playerStates.find(player => player.color === "green").moneyInCents'), 2500, 'Forfeited players never collect income');
+const reclaimedResume = game(forfeitGame.storage.get('tree-planting-game-save'));
+assert.equal(reclaimedResume.run('tileOwnership.get(getTileKey(plantedSeeds[0].tile.q, plantedSeeds[0].tile.r))'), 'yellow');
+forfeitGame.run('performingBotAction = true; forfeitPlayer(); performingBotAction = false');
+assert.equal(forfeitGame.run('gameIsOver()'), true);
+assert.match(forfeitGame.elements.get('.turn-indicator').textContent, /Red wins/);
+const finishedSave = forfeitGame.storage.get('tree-planting-game-save');
+forfeitGame.run('while (window.botTimers.length) window.botTimers.shift()(); collectPayout()');
+assert.equal(forfeitGame.storage.get('tree-planting-game-save'), finishedSave);
+assert.equal(game(finishedSave).run('gameIsOver()'), true);
+
+const bankruptBot = game();
+bankruptBot.run(`Math.random = () => 0.5; moneyInCents = 1000; startNewGame(false, 'green', false, 'maple');
+    plantedSeeds.filter(seed => getBoardTileColor(seed.tile.q,seed.tile.r) === 'yellow').forEach(seed => {
+        seed.image.remove(); plantedSeeds.splice(plantedSeeds.indexOf(seed),1); availableTiles.push(seed.tile);
+    });
+    playerStates.find(player => player.color === 'yellow').moneyInCents = 0;`);
+installBotClock(bankruptBot);
+bankruptBot.run('collectPayout(); window.botTimers.shift()()');
+assert.equal(bankruptBot.run('playerStates.find(player => player.color === "yellow").eliminated'), true);
+assert.equal(bankruptBot.run('selectedColor'), 'red');
+assert.equal(bankruptBot.run('boardTileCoordinates.filter(({q,r}) => getBoardTileColor(q,r) === "grey").length'), 7);
+const soloForfeit = game();
+soloForfeit.run(`playerCount = 1; startNewGame(false, 'green', false, 'maple'); forfeitPlayer()`);
+assert.equal(soloForfeit.run('gameIsOver()'), true);
+assert.equal(soloForfeit.run('getCurrentPlayerIncome()'), 0);
+assert.equal(soloForfeit.elements.get('.done-button').disabled, true);
+console.log('Forfeit releases tiles, freezes eliminated balances, skips turns, persists spectators and reclaimed land, handles bot bankruptcy, and stops at game over.');

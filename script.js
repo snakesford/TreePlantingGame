@@ -97,6 +97,8 @@ let selectedSeedType = null;
 let pendingColor = null;
 let selectedColor = null;
 let playerStates = [];
+let tileOwnership = new Map();
+const forfeitButton = document.querySelector(".forfeit-button");
 let humanColor = null;
 let botTurnVersion = 0;
 let performingBotAction = false;
@@ -314,6 +316,7 @@ function saveGame() {
         normalMode,
         activeBoardColors,
         playerStates,
+        tileOwnership: Array.from(tileOwnership, ([key, color]) => ({ key, color })),
         currentLevel,
         boardTileCount: startingTileCount,
         boardLayoutVersion,
@@ -442,6 +445,7 @@ function isValidSaveData(data) {
         data.playerStates.length > 3 ||
         new Set(data.playerStates.map(player => player?.color)).size !== data.playerStates.length ||
         data.playerStates.some(player => !player || !["green", "yellow", "red"].includes(player.color) ||
+            (player.eliminated !== undefined && typeof player.eliminated !== "boolean") ||
             !["maple", "birch", "spruce", "oak"].includes(player.seedType) ||
             !Number.isFinite(player.moneyInCents) || player.moneyInCents < 0) ||
         (data.playerStates.length > 0 && (!(data.activeBoardColors ?? [data.selectedColor]).every(color => data.playerStates.some(player => player.color === color)) ||
@@ -468,6 +472,7 @@ function isValidSaveData(data) {
         const key = `${tile.q},${tile.r}`;
         if (
             knownTileKeys.has(key) ||
+            !(data.normalMode !== false && Math.max(Math.abs(tile.q), Math.abs(tile.r), Math.abs(tile.q + tile.r)) <= 5) &&
             !tileNeighborOffsets.some(([qOffset, rOffset]) =>
                 knownTileKeys.has(`${tile.q + qOffset},${tile.r + rOffset}`)
             )
@@ -478,6 +483,11 @@ function isValidSaveData(data) {
         knownTileKeys.add(key);
         tilePositions.push(getTileCenter(tile.q, tile.r));
     }
+
+    if (data.tileOwnership !== undefined && (!Array.isArray(data.tileOwnership) ||
+        new Set(data.tileOwnership.map(tile => tile?.key)).size !== data.tileOwnership.length ||
+        data.tileOwnership.some(tile => !tile || !knownTileKeys.has(tile.key) ||
+            !["grey", "green", "yellow", "red"].includes(tile.color)))) return false;
 
     for (const obstacle of obstacleTiles) {
         if (
@@ -600,8 +610,9 @@ function updateMoneyDisplay() {
         button.hidden = tutorialActive;
     });
     if (normalMode) {
+        const displayedSeedType = playerStates.find(player => player.color === humanColor)?.seedType ?? selectedSeedType;
         for (const [type, button] of [["maple", plantMapleButton], ["birch", plantBirchButton], ["spruce", plantSpruceButton], ["oak", plantOakButton]]) {
-            button.hidden = type !== selectedSeedType;
+            button.hidden = type !== displayedSeedType;
         }
     }
     const displayedBalance = isBotTurn()
@@ -625,6 +636,18 @@ function updateMoneyDisplay() {
         [plantMapleButton, plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton, doneButton]
             .forEach(button => { button.disabled = true; });
     }
+    const spectating = normalMode && playerStates.find(player => player.color === humanColor)?.eliminated;
+    if (spectating) turnIndicator.textContent = `Spectating · ${turnIndicator.textContent}`;
+    if (gameIsOver()) {
+        const winner = playerStates.find(player => !player.eliminated);
+        turnIndicator.textContent = winner ? `${winner.color[0].toUpperCase() + winner.color.slice(1)} wins!` : "Game over";
+    }
+    if (spectating || gameIsOver()) {
+        [plantMapleButton, plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton, doneButton]
+            .forEach(button => { button.disabled = true; });
+    }
+    forfeitButton.hidden = !normalMode || !gameStarted;
+    forfeitButton.disabled = isBotTurn() || spectating || gameIsOver();
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
     updatePurchaseTiles();
     payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
@@ -785,7 +808,7 @@ function openObstacleDialog(key, event) {
     obstacleDialogTitle.textContent = name;
     obstaclePreviewImage.src = obstacle.image;
     obstaclePreviewImage.alt = name;
-    const unowned = !boardTileKeys.has(key);
+    const unowned = !boardTileKeys.has(key) || (normalMode && getBoardTileColor(obstacle.q, obstacle.r) === "grey");
     if (unowned && obstacle.treeType) {
         const income = treeGrowthStages[obstacle.treeType][obstacle.stageIndex].earningInCents;
         showLeafAmount(obstacleDescription, (income / 100).toFixed(2), "Buy this hex for 25 leaves to own this tree. Earns ", " each turn.");
@@ -882,7 +905,7 @@ function isObstacleVisible({ q, r }) {
 function updateObstacleVisibility() {
     tileObstacles.forEach((obstacle, key) => {
         const visible = isObstacleVisible(obstacle);
-        const unowned = !boardTileKeys.has(key);
+        const unowned = !boardTileKeys.has(key) || (normalMode && getBoardTileColor(obstacle.q, obstacle.r) === "grey");
         obstacle.element.style.display = visible ? "" : "none";
         obstacle.element.setAttribute("aria-hidden", String(!visible));
         obstacle.element.setAttribute("tabindex", visible ? "0" : "-1");
@@ -899,12 +922,12 @@ function activateObstacle(q, r) {
     const key = getTileKey(q, r);
     const obstacle = tileObstacles.get(key);
     if (!obstacle || !isObstacleVisible(obstacle)) return;
-    if (normalMode && !boardTileKeys.has(key)) purchaseTile(q, r);
+    if (normalMode && (!boardTileKeys.has(key) || getBoardTileColor(q,r) === "grey")) purchaseTile(q, r);
     else clearTileObstacle(q, r);
 }
 
 function clearTileObstacle(q, r) {
-    if (isBotTurn() && !performingBotAction) return;
+    if (!canAct()) return;
     const key = getTileKey(q, r);
     const obstacle = tileObstacles.get(key);
     if (!obstacle) return false;
@@ -975,7 +998,7 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
     tile.setAttribute("points", points);
     const tileBody = document.createElementNS(svgNamespace, "g");
     tileBody.setAttribute("class", "tile-body");
-    const color = isPurchased && normalMode ? purchasedColor ?? "green" : getBoardTileColor(q, r);
+    const color = tileOwnership.get(key) ?? (isPurchased && normalMode ? purchasedColor ?? "green" : getBoardTileColor(q, r));
     tileBody.setAttribute("data-color", color);
     tileBody.setAttribute("data-points", points);
     tileBody.addEventListener("pointerdown", (event) => pressTile(key, event, tileBody));
@@ -995,7 +1018,8 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
     });
     tileBody.addEventListener("click", () => {
         const seed = getPlantedSeed();
-        if (seed) upgradeSeed(seed);
+        if (normalMode && getBoardTileColor(q, r) === "grey") purchaseTile(q, r);
+        else if (seed) upgradeSeed(seed);
     });
     tileElements.set(key, tileBody);
     tileBody.append(tile);
@@ -1006,12 +1030,15 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
     });
     const outerEdge = bevelPoints(tileRadius);
     const topEdge = bevelPoints(radius - 5, -1);
-    const edgeColors = {
+    const palettes = {
+        grey: ["#c9cdd1", "#a8adb2", "#7b8289", "#656c73", "#7b8289", "#b7bdc3"],
         green: ["#9ac68a", "#679b60", "#365f38", "#284c30", "#305a37", "#78a76b"],
         yellow: ["#ffe99b", "#e2bd50", "#a88024", "#88651e", "#a07926", "#eed070"],
         red: ["#f7a095", "#d9675e", "#9e3f38", "#7e302e", "#963d36", "#e88276"],
         blue: ["#9dd5f7", "#609fcf", "#356b9d", "#28547f", "#32638f", "#7ab9e2"],
-    }[color];
+    };
+    const edgeColors = palettes[color];
+    const bevelElements = [];
 
     outerEdge.forEach((point, index) => {
         const next = (index + 1) % 6;
@@ -1020,11 +1047,16 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
         bevel.setAttribute("fill", edgeColors[index]);
         bevel.setAttribute("class", "tile-bevel");
         tileBody.append(bevel);
+        bevelElements.push(bevel);
     });
     const surface = document.createElementNS(svgNamespace, "polygon");
     surface.setAttribute("class", "tile-surface");
     surface.setAttribute("points", topEdge.join(" "));
     tileBody.append(surface);
+    tileBody.recolor = newColor => {
+        tileBody.setAttribute("data-color", newColor);
+        bevelElements.forEach((bevel, index) => bevel.setAttribute("fill", palettes[newColor][index]));
+    };
     tiles.prepend(tileBody);
     if (!tileObstacles.has(key)) availableTiles.push({ q, r, x, y });
     boardTileCoordinates.push({ q, r });
@@ -1102,7 +1134,7 @@ function getCompostReward(seedState) {
 }
 
 function compostTree(seedState) {
-    if (isBotTurn() && !performingBotAction) return;
+    if (!canAct()) return;
     if (!canManageTree(seedState)) return;
     const index = plantedSeeds.indexOf(seedState);
     if (index < 0) return;
@@ -1201,7 +1233,11 @@ function openSeedDialog(seedState, event) {
 }
 
 function upgradeSeed(seedState) {
-    if (isBotTurn() && !performingBotAction) return;
+    if (normalMode && getBoardTileColor(seedState.tile.q, seedState.tile.r) === "grey") {
+        purchaseTile(seedState.tile.q, seedState.tile.r);
+        return;
+    }
+    if (!canAct()) return;
     if (!canManageTree(seedState)) return;
     const upgradeCostInCents = getSeedUpgradeCost(seedState);
     if (
@@ -1239,7 +1275,7 @@ function closeSeedDialog(seedState) {
 }
 
 function canManageTree(seed) {
-    return !normalMode || getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor;
+    return !normalMode || (!playerStates.find(player => player.color === selectedColor)?.eliminated && getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor);
 }
 
 function getCurrentPlayerIncome() {
@@ -1267,7 +1303,7 @@ function initializePlayers() {
 }
 
 function collectPayout() {
-    if (isBotTurn() && !performingBotAction) return;
+    if (!canAct()) return;
     if (!gameStarted) return;
     const income = getCurrentPlayerIncome();
     if (!normalMode && income === 0) return;
@@ -1276,22 +1312,62 @@ function collectPayout() {
     if (normalMode) {
         if (playerStates.length === 0) initializePlayers();
         syncCurrentPlayer();
-        const clockwiseColors = ["green", "yellow", "red"].filter(color => playerStates.some(player => player.color === color));
-        const nextColor = clockwiseColors[(clockwiseColors.indexOf(selectedColor) + 1) % clockwiseColors.length];
-        const nextPlayer = playerStates.find(player => player.color === nextColor);
-        if (nextPlayer) {
-            closeSeedDialog(selectedSeed);
-            closeObstacleDialog(selectedObstacle);
-            selectedColor = nextPlayer.color;
-            selectedSeedType = nextPlayer.seedType;
-            moneyInCents = nextPlayer.moneyInCents;
-            payoutStatus.textContent += ` ${selectedColor[0].toUpperCase() + selectedColor.slice(1)}’s turn.`;
-        }
+        moveToNextPlayer();
     }
     updateMoneyDisplay();
     saveGame();
     scheduleBotTurn();
 }
+
+function gameIsOver() {
+    return normalMode && playerStates.some(player => player.eliminated) &&
+        playerStates.filter(player => !player.eliminated).length <= 1;
+}
+
+function canAct() {
+    return !gameIsOver() && !(normalMode && playerStates.find(player => player.color === selectedColor)?.eliminated) &&
+        (!isBotTurn() || performingBotAction);
+}
+
+function moveToNextPlayer() {
+    const colors = ["green", "yellow", "red"];
+    for (let offset = 1; offset <= colors.length; offset++) {
+        const color = colors[(colors.indexOf(selectedColor) + offset) % colors.length];
+        const next = playerStates.find(player => player.color === color && !player.eliminated);
+        if (!next) continue;
+        closeSeedDialog(selectedSeed);
+        closeObstacleDialog(selectedObstacle);
+        selectedColor = next.color;
+        selectedSeedType = next.seedType;
+        moneyInCents = next.moneyInCents;
+        payoutStatus.textContent += ` ${color[0].toUpperCase() + color.slice(1)}’s turn.`;
+        return;
+    }
+}
+
+function forfeitPlayer() {
+    if (!gameStarted || !normalMode || !canAct()) return;
+    const player = playerStates.find(player => player.color === selectedColor);
+    if (!player || player.eliminated) return;
+    syncCurrentPlayer();
+    const abandoned = boardTileCoordinates.filter(({q,r}) => getBoardTileColor(q,r) === player.color);
+    player.eliminated = true;
+    abandoned.forEach(({q,r}) => {
+        const key = getTileKey(q,r);
+        tileOwnership.set(key, "grey");
+        tileElements.get(key)?.recolor("grey");
+    });
+    botTurnVersion += 1;
+    closeSeedDialog(selectedSeed);
+    closeObstacleDialog(selectedObstacle);
+    payoutStatus.textContent = `${player.color[0].toUpperCase() + player.color.slice(1)} forfeited.`;
+    moveToNextPlayer();
+    updateMoneyDisplay();
+    saveGame();
+    scheduleBotTurn();
+}
+
+forfeitButton.addEventListener("click", forfeitPlayer);
 
 // Keep ownership separate from the active turn, including across reloads.
 function isBotTurn() {
@@ -1300,13 +1376,13 @@ function isBotTurn() {
 
 function scheduleBotTurn() {
     const version = ++botTurnVersion;
-    if (!gameStarted || !isBotTurn()) return;
+    if (!gameStarted || !isBotTurn() || gameIsOver()) return;
     let actions = 0;
     let planted = false;
     let composted = false;
     let expanded = false;
     const step = () => {
-        if (version !== botTurnVersion || !gameStarted || !isBotTurn()) return;
+        if (version !== botTurnVersion || !gameStarted || !isBotTurn() || gameIsOver()) return;
         performingBotAction = true;
         try {
             const trees = plantedSeeds.filter(canManageTree);
@@ -1322,12 +1398,18 @@ function scheduleBotTurn() {
             const expansion = getPurchaseCandidates(selectedColor)
                 .map(tile => {
                     const obstacle = tileObstacles.get(getTileKey(tile.q, tile.r));
+                    const existingTree = plantedSeeds.some(seed => seed.tile.q === tile.q && seed.tile.r === tile.r);
                     return { ...tile, clearCost: obstacle?.treeType ? 0 : obstacle?.clearCostInCents ?? 0,
-                        plantingCost: obstacle?.treeType ? 0 : plantingCost };
+                        plantingCost: obstacle?.treeType || existingTree ? 0 : plantingCost };
                 })
                 .filter(tile => moneyInCents >= tileCostInCents + tile.clearCost + tile.plantingCost)
                 .sort((a, b) => a.clearCost - b.clearCost)[0];
             const name = selectedColor[0].toUpperCase() + selectedColor.slice(1);
+            if (getCurrentPlayerIncome() === 0 && !obstacle && !expansion &&
+                (needsSpace || moneyInCents < plantingCost)) {
+                forfeitPlayer();
+                return;
+            }
             if (actions >= 8) {
                 collectPayout();
                 return;
@@ -1345,7 +1427,7 @@ function scheduleBotTurn() {
             } else if (!planted && getPlantableTiles().length > 0 && moneyInCents >= plantingCost) {
                 plantSeed();
                 planted = true;
-                payoutStatus.textContent = `${name} bot planted a ${selectedSeedType}.`;
+                payoutStatus.textContent = `${name} bot planted a tree.`;
             } else if (upgrade) {
                 upgradeSeed(upgrade);
                 payoutStatus.textContent = `${name} bot upgraded a tree.`;
@@ -1403,6 +1485,7 @@ function continueGame() {
 
     normalMode = savedGameData.normalMode ?? getSavedStartingTileCount(savedGameData) !== 1;
     playerStates = (savedGameData.playerStates ?? []).map(player => ({ ...player }));
+    tileOwnership = new Map((savedGameData.tileOwnership ?? []).map(({key, color}) => [key, color]));
     selectedSeedType = savedGameData.selectedSeedType ?? null;
     selectedColor = savedGameData.selectedColor ?? null;
     humanColor = savedGameData.humanColor ?? selectedColor;
@@ -1453,6 +1536,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
 
     savedGameData = null;
     playerStates = [];
+    tileOwnership.clear();
     normalMode = !withTutorial && !withLevels;
     selectedSeedType = normalMode ? seedType : null;
     if (tutorialWelcomeDialog.open) tutorialWelcomeDialog.close();
@@ -1582,7 +1666,7 @@ tutorialButton.addEventListener("click", () => startNewGame(true));
 window.addEventListener("beforeunload", saveGame);
 
 function plantSeed(treeType = normalMode ? selectedSeedType : "maple") {
-    if (isBotTurn() && !performingBotAction) return;
+    if (!canAct()) return;
     if (normalMode && treeType !== selectedSeedType) return;
     if (!["maple", "birch", "spruce", "oak"].includes(treeType)) return;
     const plantingCost = treeType === "oak" ? oakSeedCostInCents : seedCostInCents;
@@ -1612,7 +1696,7 @@ function getGreyTileCoordinates() {
     const coordinates = [];
     for (let q = -5; q <= 5; q += 1) {
         for (let r = -5; r <= 5; r += 1) {
-            if (Math.abs(q + r) <= 5 && !boardTileKeys.has(getTileKey(q, r))) {
+            if (Math.abs(q + r) <= 5 && (!boardTileKeys.has(getTileKey(q, r)) || getBoardTileColor(q,r) === "grey")) {
                 coordinates.push({ q, r });
             }
         }
@@ -1622,6 +1706,7 @@ function getGreyTileCoordinates() {
 
 function getPurchaseCandidates(owner = humanColor ?? selectedColor) {
     if (startingTileCount === 1) return [];
+    if (normalMode) return getGreyTileCoordinates();
     const candidates = new Map();
     boardTileCoordinates.forEach(({ q, r }) => {
         if (normalMode && getBoardTileColor(q, r) !== owner) return;
@@ -1640,7 +1725,7 @@ function updatePurchaseTiles() {
     purchaseTileElements.forEach(element => element.remove());
     purchaseTileElements.clear();
     if (gameStarted && normalMode) {
-        const disabled = isBotTurn() || moneyInCents < tileCostInCents;
+        const disabled = !canAct() || isBotTurn() || moneyInCents < tileCostInCents;
         const purchasableKeys = new Set(getPurchaseCandidates().map(({ q, r }) => getTileKey(q, r)));
         getGreyTileCoordinates().forEach(({ q, r }) => {
             const adjacent = purchasableKeys.has(getTileKey(q, r));
@@ -1676,7 +1761,7 @@ function updatePurchaseTiles() {
 function claimTreeObstacle(q, r) {
     const key = getTileKey(q, r);
     const obstacle = tileObstacles.get(key);
-    if (!obstacle?.treeType || !boardTileKeys.has(key)) return;
+    if (!obstacle?.treeType || !boardTileKeys.has(key) || getBoardTileColor(q,r) === "grey") return;
     closeObstacleDialog(key);
     obstacle.element.remove();
     tileObstacles.delete(key);
@@ -1686,9 +1771,14 @@ function claimTreeObstacle(q, r) {
 }
 
 function purchaseTile(q, r) {
-    if (!gameStarted || (isBotTurn() && !performingBotAction) || moneyInCents < tileCostInCents) return;
+    if (!gameStarted || !canAct() || moneyInCents < tileCostInCents) return;
     if (!getPurchaseCandidates(selectedColor).some(tile => tile.q === q && tile.r === r)) return;
-    if (!addBoardTile(q, r, true)) return;
+    const key = getTileKey(q,r);
+    if (boardTileKeys.has(key)) {
+        if (getBoardTileColor(q,r) !== "grey") return;
+        tileOwnership.set(key, selectedColor);
+        tileElements.get(key)?.recolor(selectedColor);
+    } else if (!addBoardTile(q, r, true)) return;
     closeObstacleDialog(getTileKey(q, r));
     if (!normalMode && currentLevel > 2 && Math.random() < tileObstacleChance) {
         addTileObstacle(q, r);
@@ -1723,6 +1813,7 @@ function getNormalBoardCoordinates(colors = activeBoardColors) {
 }
 
 function getBoardTileColor(q, r) {
+    if (normalMode && tileOwnership.has(getTileKey(q, r))) return tileOwnership.get(getTileKey(q, r));
     const purchased = purchasedTileCoordinates.find(tile => tile.q === q && tile.r === r);
     if (purchased?.color) return purchased.color;
     if (!activeBoardColors && startingTileCount !== 22) return selectedColor ?? "green";

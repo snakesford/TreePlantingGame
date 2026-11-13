@@ -827,3 +827,7 @@ main {
 .purchase-tile[aria-disabled="true"] {
     cursor: not-allowed;
 }
+
+.tile-body[data-color="grey"] .hex-tile { fill: #7b8289; }
+.tile-body[data-color="grey"] .tile-surface { fill: #a8adb2; }
+.forfeit-button { background: #89433c; color: #fff; }
