@@ -16,6 +16,7 @@
       </button>
       <div id="game-menu-panel" class="game-menu-panel" hidden>
         <button class="menu-normal-button" type="button">Normal Mode</button>
+        <button class="menu-natural-button" type="button">Natrual Expansion</button>
         <button class="menu-level-button" type="button">Level Mode</button>
         <button class="menu-tutorial-button" type="button">Tutorial</button>
       </div>
@@ -28,9 +29,8 @@
       <button class="next-level-button" type="button" hidden>Next Level</button>
     </div>
     <div class="money-counter" aria-label="Leaves">
-      <img class="currency-icon balance-icon" src="images/leaf.png" alt="Leaves" width="32" height="32" />
+      <img class="currency-icon balance-icon" src="images/sun.png" alt="Leaves" width="32" height="32" />
       <output class="money-amount" aria-live="polite">5</output>
-      <output class="compost-reward" role="status" hidden></output>
     </div>
     <aside class="daylight-clock" hidden aria-label="Day and night cycle">
       <span class="daylight-label">Daylight</span>
@@ -59,21 +59,43 @@
         <p>Click Done to collect leaves from all your trees. Upgrade trees to earn more with every click!</p>
         <button class="tutorial-done-next" type="button">Got it — let’s plant!</button>
       </div>
-      <span class="turn-indicator" role="status" aria-live="polite" hidden></span>
       <button class="done-button" type="button" disabled>Done</button>
       <button class="forfeit-button" type="button" hidden>Forfeit</button>
       <span class="payout-amount">0.00 leaves per click</span>
-      <output class="payout-status" role="status" aria-live="polite"></output>
     </aside>
   </header>
-  <output class="save-status" role="status" aria-live="polite"></output>
-  <div class="level-details">
-    <p class="level-objective"></p>
-    <p class="level-progress-text"></p>
-    <p class="level-notification" role="status" aria-live="polite" hidden></p>
-  </div>
+  <!-- Keep game feedback here so messages cannot resize the header controls. -->
+  <section class="board-messages" aria-label="Game messages">
+    <span class="turn-indicator" role="status" aria-live="polite" hidden></span>
+    <div class="level-details">
+      <p class="level-objective"></p>
+      <p class="level-progress-text"></p>
+      <p class="level-notification" role="status" aria-live="polite" hidden></p>
+    </div>
+    <output class="payout-status" role="status" aria-live="polite"></output>
+    <output class="compost-reward" role="status" hidden></output>
+    <output class="save-status" role="status" aria-live="polite"></output>
+    <output class="disaster-message" role="status" aria-live="polite" hidden></output>
+  </section>
+  <aside class="disaster-meter" hidden aria-label="Natural disaster progress">
+    <div class="disaster-track" role="progressbar" aria-label="Natural disaster" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0" aria-orientation="vertical">
+      <div class="disaster-fill"></div>
+    </div>
+  </aside>
   <main aria-label="Hexagon game board">
+    <ul class="player-roster" aria-label="Players and earnings per turn" hidden></ul>
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
+      <defs>
+        <filter id="river-bonus-outline" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+          <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
+          <feFlood flood-color="#ffd034" result="gold" />
+          <feComposite in="gold" in2="expanded" operator="in" result="outline" />
+          <feMerge>
+            <feMergeNode in="outline" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
       <g class="hex-tiles"></g>
     </svg>
   </main>
@@ -84,21 +106,21 @@
     <p class="tutorial-plant-prompt" role="status" hidden>Click to plant a seed!</p>
     <button class="plant-maple-button" type="button">
       <img class="seed-button-icon" src="images/maple/seed.png" alt="" width="48" height="48" />
-      <span>Plant Maple Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />1</span>
+      <span>Plant Maple Seed <img class="currency-icon" src="images/sun.png" alt="leaves" width="20" height="20" />1</span>
     </button>
     <button class="plant-birch-button" type="button">
       <img class="seed-button-icon" src="images/birch/seed.png" alt="" width="48" height="48" />
-      <span>Plant Birch Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />1</span>
+      <span>Plant Birch Seed <img class="currency-icon" src="images/sun.png" alt="leaves" width="20" height="20" />1</span>
     </button>
     <button class="plant-spruce-button" type="button">
       <img class="seed-button-icon" src="images/spruce/seed.png" alt="" width="48" height="48" />
-      <span>Plant Spruce Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />1</span>
+      <span>Plant Spruce Seed <img class="currency-icon" src="images/sun.png" alt="leaves" width="20" height="20" />1</span>
     </button>
     <button class="plant-oak-button" type="button">
       <img class="seed-button-icon" src="images/oak/seed.png" alt="" width="48" height="48" />
-      <span>Plant Oak Seed <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />3</span>
+      <span>Plant Oak Seed <img class="currency-icon" src="images/sun.png" alt="leaves" width="20" height="20" />3</span>
     </button>
-    <button class="buy-tile-button" type="button">Buy Tile <img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />25</button>
+    <button class="buy-tile-button" type="button">Buy Tile <img class="currency-icon" src="images/sun.png" alt="leaves" width="20" height="20" />25</button>
   </div>
   <dialog class="save-slot-dialog" aria-labelledby="save-slot-title">
     <h1 id="save-slot-title">Save Slot 1</h1>
@@ -175,7 +197,7 @@
         <progress class="seed-progress-bar" max="4" value="0" aria-label="Upgrades in current growth stage"></progress>
         <output class="seed-progress-count" aria-live="polite">0/4</output>
       </div>
-      <span class="seed-upgrade-cost"><img class="currency-icon" src="images/leaf.png" alt="leaves" width="20" height="20" />0.5</span>
+      <span class="seed-upgrade-cost"><img class="currency-icon" src="images/sun.png" alt="leaves" width="20" height="20" />0.5</span>
     </div>
     <p class="seed-compost-info"></p>
   </dialog>
