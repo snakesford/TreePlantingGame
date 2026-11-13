@@ -94,6 +94,10 @@ const setupPreview = document.querySelector(".setup-preview");
 const setupPreviewSeed = document.querySelector(".setup-preview-seed");
 let pendingSeedType = null;
 let selectedSeedType = null;
+const playerShapes = ["square", "rectangle", "circle", "triangle", "hexagon"];
+const legacyPlayerShapes = ["octagon", "decagon", "dodecagon"];
+let pendingShape = "circle";
+let selectedShape = "circle";
 let pendingColor = null;
 let selectedColor = null;
 let playerStates = [];
@@ -314,6 +318,7 @@ function saveGame() {
         selectedColor,
         humanColor,
         selectedSeedType,
+        selectedShape,
         normalMode,
         activeBoardColors,
         playerStates,
@@ -420,6 +425,7 @@ function isValidSaveData(data) {
         (data.humanColor != null && (!["red", "green", "yellow"].includes(data.humanColor) ||
             !(data.activeBoardColors ?? [data.selectedColor]).includes(data.humanColor))) ||
         (data.selectedSeedType != null && !["maple", "birch", "spruce", "oak"].includes(data.selectedSeedType)) ||
+        (data.selectedShape !== undefined && !playerShapes.includes(data.selectedShape) && !legacyPlayerShapes.includes(data.selectedShape)) ||
         (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
         (data.selectedColor != null && !["red", "green", "yellow"].includes(data.selectedColor)) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
@@ -650,6 +656,7 @@ function updateMoneyDisplay() {
     forfeitButton.hidden = !normalMode || !gameStarted;
     forfeitButton.disabled = isBotTurn() || spectating || gameIsOver();
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
+    turnIndicator.setAttribute("data-shape", selectedColor === humanColor ? selectedShape : "circle");
     updatePurchaseTiles();
     payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
     doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
@@ -1508,6 +1515,8 @@ function continueGame() {
     playerStates = (savedGameData.playerStates ?? []).map(player => ({ ...player }));
     tileOwnership = new Map((savedGameData.tileOwnership ?? []).map(({key, color}) => [key, color]));
     selectedSeedType = savedGameData.selectedSeedType ?? null;
+    selectedShape = legacyPlayerShapes.includes(savedGameData.selectedShape)
+        ? "hexagon" : savedGameData.selectedShape ?? "circle";
     selectedColor = savedGameData.selectedColor ?? null;
     humanColor = savedGameData.humanColor ?? selectedColor;
     activeBoardColors = savedGameData.activeBoardColors ?? null;
@@ -1541,7 +1550,7 @@ function continueGame() {
     startGame();
 }
 
-function startNewGame(withTutorial = false, color = null, withLevels = false, seedType = null) {
+function startNewGame(withTutorial = false, color = null, withLevels = false, seedType = null, shape = "circle") {
     if (!withTutorial && !withLevels &&
         (!["red", "green", "yellow"].includes(color) || !["maple", "birch", "spruce", "oak"].includes(seedType))) {
         openPlayerSetup(false);
@@ -1560,6 +1569,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     tileOwnership.clear();
     normalMode = !withTutorial && !withLevels;
     selectedSeedType = normalMode ? seedType : null;
+    selectedShape = normalMode && playerShapes.includes(shape) ? shape : "circle";
     if (tutorialWelcomeDialog.open) tutorialWelcomeDialog.close();
     document.querySelector(".tutorial-done-prompt").hidden = true;
     payoutControls.setAttribute("data-tutorial-focus", "false");
@@ -1617,8 +1627,12 @@ function plantStartingSprouts() {
 
 function updateSetupPreview() {
     setupPreview.setAttribute("data-color", pendingColor ?? "none");
+    setupPreview.setAttribute("data-shape", pendingShape);
+    for (const shape of playerShapes) {
+        document.querySelector(`.choose-shape-${shape}`).setAttribute("aria-pressed", String(shape === pendingShape));
+    }
     setupPreview.setAttribute("aria-label", pendingColor
-        ? `${pendingColor} circle${pendingSeedType ? ` with ${pendingSeedType} seed` : ""}`
+        ? `${pendingColor} ${pendingShape}${pendingSeedType ? ` with ${pendingSeedType} seed` : ""}`
         : "Choose a color and seed");
     setupPreviewSeed.hidden = !pendingColor || !pendingSeedType;
     if (pendingSeedType) {
@@ -1639,6 +1653,7 @@ function updateSetupPreview() {
 function openPlayerSetup(resuming) {
     choosingColorForContinue = resuming;
     pendingColor = resuming ? selectedColor : null;
+    pendingShape = resuming ? selectedShape : "circle";
     pendingSeedType = resuming ? selectedSeedType : null;
     playerCountSlider.disabled = resuming;
     if (resuming) playerCountSlider.value = String(playerCount);
@@ -1662,10 +1677,18 @@ for (const seedType of ["maple", "birch", "spruce", "oak"]) {
     });
 }
 
+for (const shape of playerShapes) {
+    document.querySelector(`.choose-shape-${shape}`).addEventListener("click", () => {
+        pendingShape = shape;
+        updateSetupPreview();
+    });
+}
+
 setupDoneButton.addEventListener("click", () => {
     if (!pendingColor || !pendingSeedType) return;
     colorDialog.close();
     if (choosingColorForContinue) {
+        selectedShape = pendingShape;
         selectedColor = pendingColor;
         humanColor = pendingColor;
         selectedSeedType = pendingSeedType;
@@ -1676,7 +1699,7 @@ setupDoneButton.addEventListener("click", () => {
         });
         startGame();
     } else {
-        startNewGame(false, pendingColor, false, pendingSeedType);
+        startNewGame(false, pendingColor, false, pendingSeedType, pendingShape);
     }
 });
 

@@ -88,7 +88,7 @@
     </div>
   </dialog>
   <dialog class="color-dialog" aria-labelledby="color-title">
-    <h1 id="color-title">Choose your color and seed</h1>
+    <h1 id="color-title">Choose your color, shape and seed</h1>
     <p>You control your chosen color. Bots play the other characters automatically.</p>
     <div class="player-count-control">
       <label for="player-count">Number of players</label>
@@ -103,6 +103,14 @@
           <button class="choose-red" type="button" aria-pressed="false">Red</button>
           <button class="choose-green" type="button" aria-pressed="false">Green</button>
           <button class="choose-yellow" type="button" aria-pressed="false">Yellow</button>
+        </div>
+        <h2>Shape</h2>
+        <div class="setup-shapes">
+          <button class="choose-shape-square" type="button" aria-label="Square" aria-pressed="false"><svg class="shape-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><rect x="5" y="5" width="30" height="30" /></svg></button>
+          <button class="choose-shape-rectangle" type="button" aria-label="Rectangle" aria-pressed="false"><svg class="shape-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><rect x="3" y="10" width="34" height="20" /></svg></button>
+          <button class="choose-shape-circle" type="button" aria-label="Circle" aria-pressed="false"><svg class="shape-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="20" cy="20" r="16" /></svg></button>
+          <button class="choose-shape-triangle" type="button" aria-label="Triangle" aria-pressed="false"><svg class="shape-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><polygon points="20,4 37,35 3,35" /></svg></button>
+          <button class="choose-shape-hexagon" type="button" aria-label="Hexagon" aria-pressed="false"><svg class="shape-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><polygon points="20,3 35,11.5 35,28.5 20,37 5,28.5 5,11.5" /></svg></button>
         </div>
         <h2>Seed</h2>
         <div class="save-slot-actions setup-seeds">
