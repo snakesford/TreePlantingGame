@@ -4,6 +4,7 @@ const purchaseTileElements = new Map();
 let pressedTreeTile = null;
 let tilePressOverlay = null;
 let plantingSeedType = null;
+let plantingStageIndex = 0;
 
 function pressTile(key, event, target) {
     if (event.button !== 0) return;
@@ -92,7 +93,6 @@ const plantMapleButton = document.querySelector(".plant-maple-button");
 const plantBirchButton = document.querySelector(".plant-birch-button");
 const plantSpruceButton = document.querySelector(".plant-spruce-button");
 const plantOakButton = document.querySelector(".plant-oak-button");
-const buyTileButton = document.querySelector(".buy-tile-button");
 const doneButton = document.querySelector(".done-button");
 const daylightClock = document.querySelector(".daylight-clock");
 const daylightStatus = document.querySelector(".daylight-status");
@@ -773,7 +773,7 @@ function updateMoneyDisplay() {
     plantMapleButton.hidden = false;
     document.querySelector(".game-actions .tutorial-plant-prompt").hidden = tutorialCompleted || !tutorialActive || !tutorialPromptReady || plantedSeeds.length > 0;
     updateTutorialUpgradePrompt();
-    [plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton].forEach((button) => {
+    [plantBirchButton, plantSpruceButton, plantOakButton].forEach((button) => {
         button.hidden = tutorialActive;
     });
     if (normalMode) {
@@ -792,7 +792,6 @@ function updateMoneyDisplay() {
     plantBirchButton.disabled = cannotPlantSeed;
     plantSpruceButton.disabled = cannotPlantSeed;
     plantOakButton.disabled = moneyInCents < oakSeedCostInCents || noPlantableTiles;
-    buyTileButton.disabled = moneyInCents < tileCostInCents;
     const income = getCurrentPlayerIncome();
     doneButton.disabled = !gameStarted || (!normalMode && income === 0);
     const turnIndicator = document.querySelector(".turn-indicator");
@@ -800,7 +799,7 @@ function updateMoneyDisplay() {
     turnIndicator.textContent = selectedColor ? `${selectedColor[0].toUpperCase() + selectedColor.slice(1)}’s turn` : "";
     if (isBotTurn()) {
         turnIndicator.textContent += " (bot)";
-        [plantMapleButton, plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton, doneButton]
+        [plantMapleButton, plantBirchButton, plantSpruceButton, plantOakButton, doneButton]
             .forEach(button => { button.disabled = true; });
     }
     const spectating = normalMode && playerStates.find(player => player.color === humanColor)?.eliminated;
@@ -812,13 +811,19 @@ function updateMoneyDisplay() {
         turnIndicator.textContent = winner ? `${winner.color[0].toUpperCase() + winner.color.slice(1)} wins!` : "Game over";
     }
     if (spectating || gameIsOver() || victory?.status === "pending") {
-        [plantMapleButton, plantBirchButton, plantSpruceButton, plantOakButton, buyTileButton, doneButton]
+        [plantMapleButton, plantBirchButton, plantSpruceButton, plantOakButton, doneButton]
             .forEach(button => { button.disabled = true; });
     }
     forfeitButton.hidden = !normalMode || !gameStarted;
     forfeitButton.disabled = isBotTurn() || spectating || gameIsOver();
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
     turnIndicator.setAttribute("data-shape", getPlayerShape(selectedColor));
+    for (const { type, stageIndex, button } of treePlantingButtons) {
+        const displayedType = playerStates.find(player => player.color === humanColor)?.seedType ?? selectedSeedType;
+        button.hidden = tutorialActive || (normalMode && type !== displayedType);
+        button.disabled = !gameStarted || !canAct() || moneyInCents < getPlantingCost(type, stageIndex) || noPlantableTiles;
+        button.setAttribute("aria-pressed", String(type === plantingSeedType && stageIndex === plantingStageIndex));
+    }
     updatePurchaseTiles();
     updatePlantingHighlights();
     updatePlayerRoster();
@@ -2312,11 +2317,12 @@ newGameButton.addEventListener("click", () => startNewGame());
 tutorialButton.addEventListener("click", () => startNewGame(true));
 window.addEventListener("beforeunload", saveGame);
 
-function plantSeed(treeType = normalMode ? selectedSeedType : "maple", target = null) {
+function plantSeed(treeType = normalMode ? selectedSeedType : "maple", target = null, stageIndex = 0) {
     if (!canAct()) return;
     if (normalMode && treeType !== selectedSeedType) return;
     if (!["maple", "birch", "spruce", "oak"].includes(treeType)) return;
-    const plantingCost = treeType === "oak" ? oakSeedCostInCents : seedCostInCents;
+    if (!Number.isInteger(stageIndex) || stageIndex < 0 || stageIndex > maximumGrowthStage) return false;
+    const plantingCost = getPlantingCost(treeType, stageIndex);
     const plantableTiles = target ? getPlantingTargets().filter(tile => tile.q === target.q && tile.r === target.r) : getPlantableTiles();
     if (moneyInCents < plantingCost || plantableTiles.length === 0) return false;
 
@@ -2333,7 +2339,7 @@ function plantSeed(treeType = normalMode ? selectedSeedType : "maple", target = 
         treeType,
         x,
         y,
-        stageIndex: 0,
+        stageIndex,
         upgradesInStage: 0,
     });
     moneyInCents -= plantingCost;
@@ -2353,11 +2359,12 @@ function getPlantingTargets() {
     return [...owned, ...grey];
 }
 
-function beginPlanting(treeType) {
+function beginPlanting(treeType, stageIndex = 0) {
     if (!gameStarted || !canAct() || (normalMode && treeType !== selectedSeedType)) return;
-    const cost = treeType === "oak" ? oakSeedCostInCents : seedCostInCents;
+    const cost = getPlantingCost(treeType, stageIndex);
     if (moneyInCents < cost || getPlantingTargets().length === 0) return;
     plantingSeedType = treeType;
+    plantingStageIndex = stageIndex;
     payoutStatus.textContent = "Choose a highlighted empty tile to plant. Adjacent grey tiles become yours. Press Escape to cancel.";
     updateMoneyDisplay();
 }
@@ -2369,24 +2376,24 @@ function plantOnTile(q, r) {
         return;
     }
     const type = plantingSeedType;
-    const cost = type === "oak" ? oakSeedCostInCents : seedCostInCents;
+    const cost = getPlantingCost(type, plantingStageIndex);
     if (moneyInCents < cost) {
         payoutStatus.textContent = "Not enough leaves to plant. Press Escape to cancel.";
         return;
     }
-    plantSeed(type, {q,r});
-    payoutStatus.textContent = "Seed planted. Choose another tile, or press Escape to cancel.";
+    plantSeed(type, {q,r}, plantingStageIndex);
+    payoutStatus.textContent = `${treeGrowthStages[type][plantingStageIndex].name} planted. Choose another tile, or press Escape to cancel.`;
 }
 
 function updatePlantingHighlights() {
-    const cost = plantingSeedType === "oak" ? oakSeedCostInCents : seedCostInCents;
+    const cost = plantingSeedType ? getPlantingCost(plantingSeedType, plantingStageIndex) : 0;
     const canPlant = plantingSeedType && moneyInCents >= cost;
     const targets = new Set(canPlant ? getPlantingTargets().map(({q,r}) => getTileKey(q,r)) : []);
     [tileElements, purchaseTileElements].forEach(elements => elements.forEach((element, key) => {
         element.setAttribute("data-plantable", String(targets.has(key)));
     }));
     for (const [type, button] of [["maple", plantMapleButton], ["birch", plantBirchButton], ["spruce", plantSpruceButton], ["oak", plantOakButton]]) {
-        button.setAttribute("aria-pressed", String(type === plantingSeedType));
+        button.setAttribute("aria-pressed", String(type === plantingSeedType && plantingStageIndex === 0));
     }
 }
 
@@ -2397,6 +2404,38 @@ window.addEventListener("keydown", event => {
         updateMoneyDisplay();
     }
 });
+
+function getPlantingCost(type, stageIndex = 0) {
+    const seedCost = type === "oak" ? oakSeedCostInCents : seedCostInCents;
+    return seedCost + treeGrowthStages[type].slice(0, stageIndex).reduce(
+        (total, stage) => total + (stage.upgradeCostInCents ?? seedUpgradeCostInCents) * upgradesPerGrowthStage, 0);
+}
+
+const treePlantingButtons = [];
+for (const type of ["maple", "birch", "spruce", "oak"]) {
+    for (let stageIndex = 1; stageIndex <= maximumGrowthStage; stageIndex += 1) {
+        const stage = treeGrowthStages[type][stageIndex];
+        const button = document.createElement("button");
+        button.type = "button";
+        button.setAttribute("class", `plant-${type}-stage-${stageIndex}-button`);
+        const icon = document.createElement("img");
+        icon.setAttribute("class", "seed-button-icon");
+        icon.setAttribute("src", stage.image);
+        icon.setAttribute("alt", "");
+        const label = document.createElement("span");
+        const currency = document.createElement("img");
+        currency.setAttribute("class", "currency-icon");
+        currency.setAttribute("src", "images/sun.png");
+        currency.setAttribute("alt", "leaves");
+        currency.setAttribute("width", "20");
+        currency.setAttribute("height", "20");
+        label.append(`Plant ${stage.name} `, currency, (getPlantingCost(type, stageIndex) / 100).toString());
+        button.append(icon, label);
+        button.addEventListener("click", () => beginPlanting(type, stageIndex));
+        document.querySelector(".game-actions").append(button);
+        treePlantingButtons.push({ type, stageIndex, button });
+    }
+}
 
 plantMapleButton.addEventListener("click", () => beginPlanting("maple"));
 plantBirchButton.addEventListener("click", () => beginPlanting("birch"));
@@ -2507,13 +2546,6 @@ function purchaseTile(q, r) {
     updateMoneyDisplay();
     saveGame();
 }
-
-buyTileButton.addEventListener("click", () => {
-    const candidates = getPurchaseCandidates();
-    if (candidates.length === 0) return;
-    const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
-    purchaseTile(q, r);
-});
 
 function getSavedStartingTileCount(data) {
     if (data.boardTileCount !== undefined) return data.boardTileCount;

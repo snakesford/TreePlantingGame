@@ -29,6 +29,16 @@ class Element {
     getBoundingClientRect() { return { left: 400, top: 400, width: 30, height: 30 }; }
 }
 
+function purchaseRandomTile(board) {
+    board.run(`{
+        const candidates = getPurchaseCandidates();
+        if (candidates.length) {
+            const { q, r } = candidates[Math.floor(Math.random() * candidates.length)];
+            purchaseTile(q, r);
+        }
+    }`);
+}
+
 function game(saved = null, captureTimers = false) {
     const elements = new Map();
     const storage = new Map(saved ? [['tree-planting-game-save', saved]] : []);
@@ -70,6 +80,33 @@ function plantViaButton(session, type) {
     session.elements.get(`.plant-${type}-button`).events.click();
     session.run('if (plantingSeedType) { const tile = getPlantingTargets()[0]; if (tile) plantOnTile(tile.q, tile.r); } window.events.keydown.forEach(callback => callback({key: "Escape"}));');
 }
+
+// Direct planting must cost the same as buying a seed and all prior upgrades.
+for (const [type, costs] of Object.entries({
+    maple: [100, 300, 900, 2100, 4100, 7300],
+    birch: [100, 500, 1300, 2500, 4500, 7300],
+    spruce: [100, 900, 2100, 4100, 7300, 12100],
+    oak: [300, 1500, 3500, 6700, 11500, 19500],
+})) {
+    for (const [stageIndex, cost] of costs.entries()) {
+        const board = game();
+        board.run(`gameStarted = true; moneyInCents = ${cost}; updateMoneyDisplay()`);
+        assert.equal(board.run(`getPlantingCost("${type}", ${stageIndex})`), cost);
+        if (stageIndex) {
+            board.run(`treePlantingButtons.find(entry => entry.type === "${type}" && entry.stageIndex === ${stageIndex}).button.events.click()`);
+        } else {
+            board.elements.get(`.plant-${type}-button`).events.click();
+        }
+        board.run('const target = getPlantingTargets()[0]; plantOnTile(target.q, target.r)');
+        assert.equal(board.run('plantedSeeds[0].stageIndex'), stageIndex);
+        assert.equal(board.run('plantedSeeds[0].treeType'), type);
+        assert.equal(board.run('moneyInCents'), 0);
+        board.run('const nextTarget = getPlantingTargets()[0]; plantOnTile(nextTarget.q, nextTarget.r)');
+        assert.equal(board.run('plantedSeeds.length'), 1);
+        if (stageIndex) assert.equal(board.run(`treePlantingButtons.find(entry => entry.type === "${type}" && entry.stageIndex === ${stageIndex}).button.disabled`), true);
+    }
+}
+console.log('All tree levels plant at cumulative upgrade prices and reject unaffordable repeat planting.');
 
 const clock = game();
 clock.run('gameStarted = true; elapsedCycleTime = 0; previousFrameTime = 0; renderLevelClock()');
@@ -128,7 +165,7 @@ assert.equal(tutorial.run('plantedSeeds.length'), 0);
 assert.equal(tutorial.run('availableTiles.length'), 1);
 assert.equal(tutorial.elements.get('.plant-maple-button').hidden, false);
 assert.equal(tutorial.elements.get('.plant-maple-button').disabled, false);
-for (const selector of ['.plant-birch-button', '.plant-spruce-button', '.plant-oak-button', '.buy-tile-button']) {
+for (const selector of ['.plant-birch-button', '.plant-spruce-button', '.plant-oak-button']) {
     assert.equal(tutorial.elements.get(selector).hidden, true);
 }
 const tutorialSave = tutorial.storage.get('tree-planting-game-save');
@@ -507,7 +544,7 @@ const unlocked = game(levels.storage.get('tree-planting-game-save'));
 unlocked.run('continueGame()');
 assert.equal(unlocked.elements.get('.next-level-button').hidden, false);
 levels.run('plantSeed(); openSeedDialog(plantedSeeds[0])');
-levels.elements.get('.buy-tile-button').events.click();
+purchaseRandomTile(levels);
 assert.equal(levels.run('boardTileCoordinates.length'), 23);
 const levelBalance = levels.run('moneyInCents');
 levels.run('Math.random = () => 0');
@@ -551,7 +588,7 @@ const obstacleFree = game();
 obstacleFree.run('startGame(); Math.random = () => 0; spawnRandomTileObstacles()');
 assert.equal(obstacleFree.run('tileObstacles.size'), 0);
 assert.equal(obstacleFree.run('availableTiles.length'), 22);
-obstacleFree.elements.get('.buy-tile-button').events.click();
+purchaseRandomTile(obstacleFree);
 assert.equal(obstacleFree.run('tileObstacles.size'), 0);
 assert.equal(obstacleFree.run('availableTiles.length'), 23);
 const obstructedSave = JSON.parse(obstacleFree.storage.get('tree-planting-game-save'));
@@ -573,7 +610,7 @@ assert.equal(loadedObstacle.run('boardTileCoordinates.length'), 7);
 assert.equal(loadedObstacle.run('tileObstacles.size'), 1);
 assert.equal(JSON.stringify(loadedObstacle.run('Array.from(tileObstacles.keys())')),
     JSON.stringify(obstacleFree.run('Array.from(tileObstacles.keys())')));
-loadedObstacle.elements.get('.buy-tile-button').events.click();
+purchaseRandomTile(loadedObstacle);
 assert.equal(loadedObstacle.run('tileObstacles.size'), 1);
 loadedObstacle.run('const obstacle = Array.from(tileObstacles.values())[0]; clearTileObstacle(obstacle.q, obstacle.r)');
 const clearedLevelTwo = game(loadedObstacle.storage.get('tree-planting-game-save'));
@@ -663,7 +700,7 @@ expectIncomplete(4);
 campaign.run('upgradeSeed(plantedSeeds[2])');
 completeAndAdvance(4);
 assert.match(campaign.elements.get('.level-objective').textContent, /Profitable Forest/);
-for (let i = 0; i < 6; i++) campaign.elements.get('.buy-tile-button').events.click();
+for (let i = 0; i < 6; i++) purchaseRandomTile(campaign);
 campaign.run('for (let i = 0; i < 24; i++) plantSeed()');
 expectIncomplete(5);
 assert.equal(campaign.elements.get('.level-progress-text').textContent, '9.60/10 leaves per payout');
@@ -742,7 +779,7 @@ for (const [index, count] of [22, 7, 12, 15, 19, 19, 27, 36].entries()) {
         (q === 0 && r === 0) || tileNeighborOffsets.some(([dq, dr]) =>
             boardTileKeys.has(getTileKey(q + dq, r + dr))))`), true);
     board.run('plantSeed()');
-    board.elements.get('.buy-tile-button').events.click();
+    purchaseRandomTile(board);
     const restoredBoard = game(board.storage.get('tree-planting-game-save'));
     restoredBoard.run('continueGame()');
     assert.equal(restoredBoard.run('boardTileCoordinates.length'), count + 1);
@@ -902,7 +939,7 @@ for (const color of ['red', 'green', 'yellow']) {
     assert.equal(resumed.run('getBoardTileColor(window.compostedTile.q, window.compostedTile.r)'), color);
     assert.equal(resumed.run('plantedSeeds.length'), 9);
     resumed.run('moneyInCents = 5000; updateMoneyDisplay()');
-    resumed.elements.get('.buy-tile-button').events.click();
+    purchaseRandomTile(resumed);
     assert.equal(resumed.run('getPlantableTiles().length'), resumed.run('(tileObstacles.has(getTileKey(purchasedTileCoordinates[0].q, purchasedTileCoordinates[0].r)) || plantedSeeds.some(seed => seed.tile.q === purchasedTileCoordinates[0].q && seed.tile.r === purchasedTileCoordinates[0].r)) ? 0 : 1'));
     resumed.run('plantSeed()');
     assert.equal(resumed.run('plantedSeeds.filter(seed => seed.stageIndex === 0).every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
@@ -988,7 +1025,7 @@ for (const count of [1, 2, 3]) {
         }
         assert.equal(setup.run('tileElements.get("0,0").getAttribute("data-color")'), 'blue');
         setup.run('moneyInCents = 5000; plantSeed()');
-        setup.elements.get('.buy-tile-button').events.click();
+        purchaseRandomTile(setup);
         const resumed = game(setup.storage.get('tree-planting-game-save'));
         resumed.run('continueGame()');
         assert.equal(resumed.run('gameStarted'), true);
@@ -1168,7 +1205,7 @@ ownedExpansion.elements.get('.choose-green').events.click();
 ownedExpansion.elements.get('.choose-seed-maple').events.click();
 ownedExpansion.elements.get('.setup-done-button').events.click();
 ownedExpansion.run('moneyInCents = 5000; updateMoneyDisplay()');
-ownedExpansion.elements.get('.buy-tile-button').events.click();
+purchaseRandomTile(ownedExpansion);
 assert.equal(ownedExpansion.run('purchasedTileCoordinates[0].color'), 'green');
 ownedExpansion.elements.get('.done-button').events.click();
 assert.equal(ownedExpansion.run('selectedColor'), 'yellow');
