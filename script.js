@@ -550,6 +550,7 @@ function isValidSaveData(data) {
         new Set(data.playerStates.map(player => player?.color)).size !== data.playerStates.length ||
         data.playerStates.some(player => !player || !["green", "yellow", "red"].includes(player.color) ||
             (player.eliminated !== undefined && typeof player.eliminated !== "boolean") ||
+            (player.shape !== undefined && !playerShapes.includes(player.shape)) ||
             !["maple", "birch", "spruce", "oak"].includes(player.seedType) ||
             !Number.isFinite(player.moneyInCents) || player.moneyInCents < 0) ||
         (data.playerStates.length > 0 && (!(data.activeBoardColors ?? [data.selectedColor]).every(color => data.playerStates.some(player => player.color === color)) ||
@@ -758,7 +759,7 @@ function updateMoneyDisplay() {
     forfeitButton.hidden = !normalMode || !gameStarted;
     forfeitButton.disabled = isBotTurn() || spectating || gameIsOver();
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
-    turnIndicator.setAttribute("data-shape", selectedColor === humanColor ? selectedShape : "circle");
+    turnIndicator.setAttribute("data-shape", getPlayerShape(selectedColor));
     updatePurchaseTiles();
     updatePlantingHighlights();
     updatePlayerRoster();
@@ -788,7 +789,7 @@ function updatePlayerRoster() {
         const avatar = document.createElement("span");
         avatar.className = "player-avatar";
         avatar.setAttribute("data-color", player.color);
-        avatar.setAttribute("data-shape", player.color === humanColor ? selectedShape : "circle");
+        avatar.setAttribute("data-shape", getPlayerShape(player.color));
         const seed = document.createElement("img");
         seed.src = `images/${player.seedType}/seed.png`;
         seed.alt = `${player.seedType} seed`;
@@ -1481,11 +1482,20 @@ function syncCurrentPlayer() {
     }
 }
 
+function randomPlayerShape() {
+    return playerShapes[Math.floor(Math.random() * playerShapes.length)];
+}
+
+function getPlayerShape(color) {
+    return color === humanColor ? selectedShape : playerStates.find(player => player.color === color)?.shape ?? "circle";
+}
+
 function initializePlayers() {
     if (!normalMode || !selectedColor || !selectedSeedType) return;
     const colors = activeBoardColors ?? [selectedColor];
     playerStates = ["green", "yellow", "red"].filter(color => colors.includes(color)).map(color => ({
         color,
+        shape: color === humanColor ? selectedShape : randomPlayerShape(),
         seedType: color === selectedColor ? selectedSeedType :
             plantedSeeds.find(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === color)?.treeType ?? "maple",
         moneyInCents: color === selectedColor ? moneyInCents : startingMoneyInCents,
@@ -1831,6 +1841,9 @@ function continueGame() {
         ? "hexagon" : savedGameData.selectedShape ?? "circle";
     selectedColor = savedGameData.selectedColor ?? null;
     humanColor = savedGameData.humanColor ?? selectedColor;
+    playerStates.forEach(player => {
+        player.shape ??= player.color === humanColor ? selectedShape : randomPlayerShape();
+    });
     activeBoardColors = savedGameData.activeBoardColors ?? null;
     playerCount = activeBoardColors?.length ?? 3;
     elapsedCycleTime = savedGameData.elapsedCycleTime ?? 0;
