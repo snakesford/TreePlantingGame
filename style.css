@@ -794,6 +794,7 @@ main {
 .color-dialog .setup-colors button { min-height: 48px; padding: 10px; }
 .color-dialog .setup-seeds { display: grid; grid-template-columns: repeat(2, 1fr); }
 .color-dialog .setup-seeds button { display: grid; justify-items: center; gap: 8px; min-height: 100px; font-size: 1rem; }
+.color-dialog .setup-seeds img { width: 48px; height: 48px; object-fit: contain; }
 .setup-choices button[aria-pressed="true"] { outline: 3px solid #205627; outline-offset: 2px; }
 .setup-preview { width: 160px; height: 160px; border-radius: 50%; display: grid; place-items: center; background: #e4e8df; border: 3px solid rgb(0 0 0 / 12%); }
 .setup-preview[data-color="red"] { background: #e8786d; }
