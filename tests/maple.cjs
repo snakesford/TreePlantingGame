@@ -1673,17 +1673,22 @@ const disaster = game();
 disaster.run("Math.random = () => 0.5; playerCount = 1; startNewGame(false, 'green', false, 'maple', true)");
 assert.equal(disaster.elements.get('.disaster-meter').hidden, false);
 assert.equal(disaster.elements.get('.disaster-fill').style.height, '0%');
+for (let turn = 1; turn < 5; turn++) {
+    disaster.run('collectPayout()');
+    assert.equal(disaster.elements.get('.disaster-fill').style.height, `${turn * 20}%`);
+    assert.equal(disaster.elements.get('.disaster-message').hidden, true);
+}
 disaster.run('collectPayout()');
 assert.equal(disaster.elements.get('.disaster-fill').style.height, '100%');
 assert.equal(disaster.elements.get('.disaster-message').hidden, false);
 const disasterResume = game(disaster.storage.get('tree-planting-game-save'));
 assert.equal(disasterResume.elements.get('.disaster-fill').style.height, '100%');
 assert.equal(disasterResume.elements.get('.disaster-fill').style.height, '100%');
-assert.equal(disasterResume.elements.get('.disaster-track').getAttribute('aria-valuenow'), '1');
+assert.equal(disasterResume.elements.get('.disaster-track').getAttribute('aria-valuenow'), '5');
 assert.equal(disasterResume.elements.get('.disaster-message').hidden, false);
 assert.equal(disasterResume.elements.get('.disaster-message').textContent, 'natural disaster');
 disasterResume.run('collectPayout()');
-assert.equal(disasterResume.run('disasterTurns'), 1);
+assert.equal(disasterResume.run('disasterTurns'), 5);
 disasterResume.run("startNewGame(false, 'green', false, 'maple')");
 assert.equal(disasterResume.elements.get('.disaster-fill').style.height, '0%');
 assert.equal(disasterResume.elements.get('.disaster-message').hidden, true);
@@ -1770,6 +1775,7 @@ function wildfireFixture() {
                 addPlantedSeed({ x: tile.x, y: tile.y, treeType: 'maple', stageIndex: 2, upgradesInStage: 0 });
             }
         }
+        disasterTurns = disasterTurnLimit - 1;
         window.timers = [];
     `);
     return session;
@@ -1839,7 +1845,11 @@ for (const remaining of [1, 0]) {
 }
 cooldown.run('selectedColor = humanColor; collectPayout()');
 assert.equal(cooldown.run('disasterTurns'), 1, 'Meter fills on the turn after cooldown');
-assert.equal(cooldown.run('wildfireActive'), true);
+assert.equal(cooldown.run('wildfireActive'), false);
+for (let turn = 2; turn <= 5; turn++) {
+    cooldown.run('selectedColor = humanColor; collectPayout()');
+    assert.equal(cooldown.run('wildfireActive'), turn === 5);
+}
 cooldown.run("startNewGame(false, 'green', false, 'maple', true)");
 assert.equal(cooldown.run('disasterCooldownTurns'), 0, 'New games clear cooldown');
 console.log('Disasters wait two human turns before refilling, preserve cooldown across saves, and ignore bot turns.');
