@@ -176,6 +176,8 @@ const setupDoneButton = document.querySelector(".setup-done-button");
 const setupPreview = document.querySelector(".setup-preview");
 const setupPreviewSeed = document.querySelector(".setup-preview-seed");
 let pendingSeedType = null;
+const playerColors = ["gold", "red", "blue", "green", "orange", "cyan", "purple", "pink"];
+const savedPlayerColors = [...playerColors, "yellow"];
 const playerShapes = ["square", "rectangle", "circle", "triangle", "hexagon"];
 const legacyPlayerShapes = ["octagon", "decagon", "dodecagon"];
 let pendingShape = "circle";
@@ -511,10 +513,10 @@ function isValidSaveData(data) {
         (data.activeBoardColors != null && (!Array.isArray(data.activeBoardColors) ||
             data.activeBoardColors.length < 1 || data.activeBoardColors.length > 3 ||
             new Set(data.activeBoardColors).size !== data.activeBoardColors.length ||
-            data.activeBoardColors.some(color => !["red", "green", "yellow"].includes(color)) ||
+            data.activeBoardColors.some(color => !savedPlayerColors.includes(color)) ||
             !data.activeBoardColors.includes(data.selectedColor) ||
             data.boardTileCount !== (data.naturalExpansion ? 91 : 1 + 7 * data.activeBoardColors.length))) ||
-        (data.humanColor != null && (!["red", "green", "yellow"].includes(data.humanColor) ||
+        (data.humanColor != null && (!savedPlayerColors.includes(data.humanColor) ||
             !(data.activeBoardColors ?? [data.selectedColor]).includes(data.humanColor))) ||
         (data.selectedSeedType != null && !["maple", "birch", "spruce", "oak"].includes(data.selectedSeedType)) ||
         (data.selectedShape !== undefined && !playerShapes.includes(data.selectedShape) && !legacyPlayerShapes.includes(data.selectedShape)) ||
@@ -524,7 +526,7 @@ function isValidSaveData(data) {
         (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
         (data.naturalExpansion !== undefined && typeof data.naturalExpansion !== "boolean") ||
         (data.naturalExpansion && (data.normalMode !== true || !data.activeBoardColors || data.boardTileCount !== 91)) ||
-        (data.selectedColor != null && !["red", "green", "yellow"].includes(data.selectedColor)) ||
+        (data.selectedColor != null && !savedPlayerColors.includes(data.selectedColor)) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
         (data.boardLayoutVersion !== undefined && ![1, 2].includes(data.boardLayoutVersion)) ||
         (data.boardTileCount !== undefined && ![1, 7, 8, 12, 15, 19, 22, 27, 36, 91].includes(data.boardTileCount)) ||
@@ -548,7 +550,7 @@ function isValidSaveData(data) {
     if (data.playerStates !== undefined && (!Array.isArray(data.playerStates) ||
         data.playerStates.length > 3 ||
         new Set(data.playerStates.map(player => player?.color)).size !== data.playerStates.length ||
-        data.playerStates.some(player => !player || !["green", "yellow", "red"].includes(player.color) ||
+        data.playerStates.some(player => !player || !savedPlayerColors.includes(player.color) ||
             (player.eliminated !== undefined && typeof player.eliminated !== "boolean") ||
             (player.shape !== undefined && !playerShapes.includes(player.shape)) ||
             !["maple", "birch", "spruce", "oak"].includes(player.seedType) ||
@@ -569,7 +571,7 @@ function isValidSaveData(data) {
             !tile ||
             !Number.isInteger(tile.q) ||
             !Number.isInteger(tile.r) ||
-            (tile.color !== undefined && !["red", "green", "yellow"].includes(tile.color))
+            (tile.color !== undefined && !savedPlayerColors.includes(tile.color))
         ) {
             return false;
         }
@@ -592,7 +594,7 @@ function isValidSaveData(data) {
     if (data.tileOwnership !== undefined && (!Array.isArray(data.tileOwnership) ||
         new Set(data.tileOwnership.map(tile => tile?.key)).size !== data.tileOwnership.length ||
         data.tileOwnership.some(tile => !tile || !knownTileKeys.has(tile.key) ||
-            !["grey", "green", "yellow", "red"].includes(tile.color)))) return false;
+            !["grey", ...savedPlayerColors].includes(tile.color)))) return false;
 
     for (const obstacle of obstacleTiles) {
         if (
@@ -1211,6 +1213,11 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
         yellow: ["#ffe99b", "#e2bd50", "#a88024", "#88651e", "#a07926", "#eed070"],
         red: ["#f7a095", "#d9675e", "#9e3f38", "#7e302e", "#963d36", "#e88276"],
         blue: ["#9dd5f7", "#609fcf", "#356b9d", "#28547f", "#32638f", "#7ab9e2"],
+        gold: ["#ffe99b", "#e2bd50", "#a88024", "#88651e", "#a07926", "#eed070"],
+        orange: ["#ffd2a0", "#e69a50", "#ac6226", "#864719", "#a75b20", "#f2b677"],
+        cyan: ["#a5f0f2", "#59bbc2", "#2d858e", "#20666e", "#297e85", "#83dce0"],
+        purple: ["#d7b8f4", "#a17acb", "#754c9e", "#583577", "#704693", "#bea0e0"],
+        pink: ["#ffd0e6", "#da8bb3", "#a45b81", "#7e3e61", "#9c527a", "#edb1d0"],
     };
     const edgeColors = palettes[color];
     const bevelElements = [];
@@ -1490,10 +1497,16 @@ function getPlayerShape(color) {
     return color === humanColor ? selectedShape : playerStates.find(player => player.color === color)?.shape ?? "circle";
 }
 
+function getPlayerTurnColors(colors) {
+    const legacyColors = ["green", "yellow", "red"];
+    return colors.every(color => legacyColors.includes(color))
+        ? legacyColors.filter(color => colors.includes(color)) : colors;
+}
+
 function initializePlayers() {
     if (!normalMode || !selectedColor || !selectedSeedType) return;
     const colors = activeBoardColors ?? [selectedColor];
-    playerStates = ["green", "yellow", "red"].filter(color => colors.includes(color)).map(color => ({
+    playerStates = getPlayerTurnColors(colors).map(color => ({
         color,
         shape: color === humanColor ? selectedShape : randomPlayerShape(),
         seedType: color === selectedColor ? selectedSeedType :
@@ -1647,7 +1660,7 @@ function canAct() {
 
 function moveToNextPlayer() {
     plantingSeedType = null;
-    const colors = ["green", "yellow", "red"];
+    const colors = getPlayerTurnColors(activeBoardColors ?? playerStates.map(player => player.color));
     for (let offset = 1; offset <= colors.length; offset++) {
         const color = colors[(colors.indexOf(selectedColor) + offset) % colors.length];
         const next = playerStates.find(player => player.color === color && !player.eliminated);
@@ -1880,7 +1893,7 @@ function continueGame() {
 
 function startNewGame(withTutorial = false, color = null, withLevels = false, seedType = null, withNaturalExpansion = false, shape = "circle") {
     if (!withTutorial && !withLevels &&
-        (!["red", "green", "yellow"].includes(color) || !["maple", "birch", "spruce", "oak"].includes(seedType))) {
+        (!savedPlayerColors.includes(color) || !["maple", "birch", "spruce", "oak"].includes(seedType))) {
         pendingNaturalExpansion = withNaturalExpansion;
         openPlayerSetup(false);
         return;
@@ -1947,7 +1960,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
 }
 
 function choosePlayerColors(playerColor, count) {
-    const remainingColors = ["green", "yellow", "red"].filter(color => color !== playerColor);
+    const remainingColors = playerColors.filter(color => color !== playerColor);
     for (let index = remainingColors.length - 1; index > 0; index -= 1) {
         const randomIndex = Math.floor(Math.random() * (index + 1));
         [remainingColors[index], remainingColors[randomIndex]] = [remainingColors[randomIndex], remainingColors[index]];
@@ -1997,7 +2010,7 @@ function updateSetupPreview() {
         setupPreviewSeed.alt = `${pendingSeedType} seed`;
     }
     setupDoneButton.disabled = !pendingColor || !pendingSeedType;
-    for (const color of ["red", "green", "yellow"]) {
+    for (const color of playerColors) {
         const button = document.querySelector(`.choose-${color}`);
         button.setAttribute("aria-pressed", String(color === pendingColor));
         button.disabled = choosingColorForContinue && activeBoardColors !== null && !activeBoardColors.includes(color);
@@ -2019,7 +2032,7 @@ function openPlayerSetup(resuming) {
     colorDialog.showModal();
 }
 
-for (const color of ["red", "green", "yellow"]) {
+for (const color of playerColors) {
     document.querySelector(`.choose-${color}`).addEventListener("click", () => {
         if (choosingColorForContinue && activeBoardColors && !activeBoardColors.includes(color)) return;
         pendingColor = color;
@@ -2282,8 +2295,12 @@ function getNaturalExpansionCoordinates(colors) {
 
 function getNormalBoardCoordinates(colors = activeBoardColors, expansion = naturalExpansion) {
     if (expansion && colors) return getNaturalExpansionCoordinates(colors);
-    const coordinates = [{ q: 0, r: 0, color: "blue" }];
-    for (const [q, r, color] of [[1, -2, "green"], [1, 1, "yellow"], [-2, 1, "red"]]) {
+    const coordinates = [{ q: 0, r: 0, color: colors?.includes("blue") ? "grey" : "blue" }];
+    const regionColors = !colors || colors.every(color => ["green", "yellow", "red"].includes(color))
+        ? ["green", "yellow", "red"] : colors;
+    for (const [index, [q, r]] of [[1, -2], [1, 1], [-2, 1]].entries()) {
+        const color = regionColors[index];
+        if (!color) continue;
         if (colors && !colors.includes(color)) continue;
         coordinates.push({ q, r, color });
         tileNeighborOffsets.forEach(([dq, dr]) => coordinates.push({ q: q + dq, r: r + dr, color }));

@@ -1170,3 +1170,19 @@ main:has(.player-roster:not([hidden])) .hex-board {
 @media (max-width: 600px) {
     .player-avatar { width: 64px; height: 64px; }
 }
+
+/* Shared player palette for selection and gameplay. */
+[data-color="gold"] { --player-fill: #f2cf65; --player-edge: #c9a33d; --player-ink: #705508; }
+[data-color="red"] { --player-fill: #e8786d; --player-edge: #ba5048; --player-ink: #7c2821; }
+[data-color="blue"] { --player-fill: #6cafe0; --player-edge: #467da9; --player-ink: #205781; }
+[data-color="green"] { --player-fill: #69a373; --player-edge: #477d50; --player-ink: #204d29; }
+[data-color="orange"] { --player-fill: #f3a35c; --player-edge: #c77732; --player-ink: #7b3d09; }
+[data-color="cyan"] { --player-fill: #6ed6db; --player-edge: #389ca3; --player-ink: #165e64; }
+[data-color="purple"] { --player-fill: #b28ade; --player-edge: #825bb0; --player-ink: #563377; }
+[data-color="pink"] { --player-fill: #ed9fc5; --player-edge: #bb6c96; --player-ink: #7c355b; }
+.setup-colors button[data-color],
+.setup-preview[data-color]:not([data-color="none"]),
+.player-avatar[data-color] { background: var(--player-fill, #f2cf65); color: var(--player-ink, #705508); }
+.tile-body[data-color]:not([data-color="grey"]) .hex-tile { fill: var(--player-edge, #c9a33d); }
+.tile-body[data-color]:not([data-color="grey"]) .tile-surface { fill: var(--player-fill, #f2cf65); }
+.turn-indicator[data-color] { color: var(--player-ink, #705508); }
