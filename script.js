@@ -691,7 +691,7 @@ function isValidSaveData(data) {
             !Number.isInteger(seed.stageIndex) ||
             seed.stageIndex < 0 ||
             seed.stageIndex > ([1, 3].includes(data.version) ? 6 : maximumGrowthStage) ||
-            !Number.isInteger(seed.upgradesInStage) ||
+            !Number.isFinite(seed.upgradesInStage) ||
             seed.upgradesInStage < 0 ||
             seed.upgradesInStage >= getUpgradesPerStage(seed)
         ) {
@@ -1538,7 +1538,7 @@ function updateSeedAppearance(seedState) {
         "aria-label",
         seedState.stageIndex === maximumGrowthStage
             ? `Fully grown ${stage.name.toLowerCase()}.`
-            : `${stage.name}, ${seedState.upgradesInStage} of ${getUpgradesPerStage(seedState)} upgrades. Click to upgrade.`
+            : `${stage.name}, ${seedState.upgradesInStage} of ${getUpgradesPerStage(seedState)} growth progress. Click to upgrade.`
     );
     seedState.image.setAttribute("role", "button");
     seedState.image.setAttribute("aria-description", `Right-click to compost for ${seedState.stageIndex + 1} times this stage's earnings per payout.`);
@@ -1555,17 +1555,20 @@ function updateSeedDialog() {
     seedDialogTitle.textContent = stage.name;
     seedPreviewImage.src = stage.image;
     seedPreviewImage.alt = stage.name;
-    const earningPerPayout = (stage.earningInCents / 100).toFixed(2);
-    showLeafAmount(seedDescription, earningPerPayout, "Earns ", isFullyGrown
-        ? " each time you click Done."
-        : " each time you click Done. Click the tree to upgrade.");
+    const earningPerPayout = (getTreeIncome(selectedSeed) / 100).toFixed(2);
+    const terrain = getTileTerrain(selectedSeed.tile.q, selectedSeed.tile.r);
+    const terrainEffect = terrain === "lush" ? " Lush terrain: +15% sun and growth."
+        : terrain === "dry" ? " Dry terrain: −15% sun and growth." : " Normal terrain: standard sun and growth.";
+    showLeafAmount(seedDescription, earningPerPayout, "Earns ", (isFullyGrown
+        ? " each payout."
+        : " each payout. Click the tree to upgrade.") + terrainEffect);
     const requiredUpgrades = getUpgradesPerStage(selectedSeed);
     seedProgressBar.max = requiredUpgrades;
     const displayedUpgrades = isFullyGrown
         ? requiredUpgrades
         : selectedSeed.upgradesInStage;
     seedProgressBar.value = displayedUpgrades;
-    seedProgressCount.textContent = `${displayedUpgrades}/${requiredUpgrades}`;
+    seedProgressCount.textContent = `${displayedUpgrades}/${requiredUpgrades} growth`;
     if (isFullyGrown) {
         seedUpgradeCost.textContent = "Grown";
     } else {
@@ -1605,10 +1608,14 @@ function upgradeSeed(seedState) {
 }
 
 function advanceSeedGrowth(seedState) {
-    seedState.upgradesInStage += 1;
-    if (seedState.upgradesInStage === getUpgradesPerStage(seedState)) {
+    if (seedState.stageIndex >= maximumGrowthStage) return;
+    // Keep fractional growth and carry excess into the next stage.
+    seedState.upgradesInStage = Math.round(
+        (seedState.upgradesInStage + getTerrainMultiplier(seedState)) * 100) / 100;
+    if (seedState.upgradesInStage >= getUpgradesPerStage(seedState)) {
         seedState.stageIndex += 1;
-        seedState.upgradesInStage = 0;
+        seedState.upgradesInStage = seedState.stageIndex === maximumGrowthStage ? 0
+            : Math.round((seedState.upgradesInStage - getUpgradesPerStage(seedState)) * 100) / 100;
     }
 
     updateSeedAppearance(seedState);
@@ -1638,8 +1645,14 @@ function isRiverTile({ q, r }) {
     return tileObstacles.get(getTileKey(q, r))?.key === "river";
 }
 
+function getTerrainMultiplier(seed) {
+    const terrain = getTileTerrain(seed.tile.q, seed.tile.r);
+    return terrain === "lush" ? 1.15 : terrain === "dry" ? 0.85 : 1;
+}
+
 function getTreeIncome(seed) {
-    return getGrowthStage(seed).earningInCents * (isRiverTile(seed.tile) ? 2 : 1);
+    return Math.round(getGrowthStage(seed).earningInCents * getTerrainMultiplier(seed) *
+        (isRiverTile(seed.tile) ? 2 : 1));
 }
 
 function syncCurrentPlayer() {

@@ -17,6 +17,7 @@ session.run(\`
         const tile = { q, r: 0 };
         boardTileCoordinates.push(tile);
         tileOwnership.set(getTileKey(q, 0), 'green');
+        tileTerrain.set(getTileKey(q, 0), 'normal');
         plantedSeeds.push({ tile, treeType: 'maple', stageIndex: maximumGrowthStage });
     }
     const redTile = { q: -4, r: 0 };

@@ -17,5 +17,25 @@ assert.equal(restored.run('JSON.stringify(Array.from(tileTerrain))'), session.ru
 const legacy = JSON.parse(saved);
 delete legacy.tileTerrain;
 assert.equal(game(JSON.stringify(legacy)).run('tileTerrain.size'), 91);
-console.log('Terrain quotas, owned/unclaimed tiles, persistence, and legacy saves passed.');
+session.run('victory = null; const testSeed = plantedSeeds[0];');
+for (const [terrain, income, increment, clicks, remainder] of [
+    ['normal', 40, 1, 4, 0], ['lush', 46, 1.15, 4, 0.6], ['dry', 34, 0.85, 5, 0.25]
+]) {
+    session.run('testSeed.stageIndex = 0; testSeed.upgradesInStage = 0; tileTerrain.set(getTileKey(testSeed.tile.q, testSeed.tile.r), "' + terrain + '");');
+    assert.equal(session.run('getTreeIncome(testSeed)'), income);
+    session.run('advanceSeedGrowth(testSeed)');
+    assert.equal(session.run('testSeed.upgradesInStage'), increment);
+    const fractionalSave = session.storage.get('tree-planting-game-save');
+    assert.equal(session.run('isValidSaveData(JSON.parse(localStorage.getItem(saveStorageKey)))'), true);
+    assert.equal(game(fractionalSave).run('plantedSeeds[0].upgradesInStage'), increment);
+    for (let i = 1; i < clicks; i++) session.run('advanceSeedGrowth(testSeed)');
+    assert.equal(session.run('testSeed.stageIndex'), 1);
+    assert.equal(session.run('testSeed.upgradesInStage'), remainder);
+    session.run('testSeed.stageIndex = maximumGrowthStage - 1; testSeed.upgradesInStage = 3.9; advanceSeedGrowth(testSeed); advanceSeedGrowth(testSeed)');
+    assert.equal(session.run('testSeed.stageIndex'), 5);
+    assert.equal(session.run('testSeed.upgradesInStage'), 0);
+}
+session.run('testSeed.stageIndex = 0; tileTerrain.set(getTileKey(testSeed.tile.q, testSeed.tile.r), "lush"); tileObstacles.set(getTileKey(testSeed.tile.q, testSeed.tile.r), { key: "river" })');
+assert.equal(session.run('getTreeIncome(testSeed)'), 92, 'Terrain bonus combines with river income');
+console.log('Terrain quotas, income, growth carryover, maturity, river stacking, and save/load passed.');
 `, { require, __dirname, console });
