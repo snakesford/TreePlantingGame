@@ -28,29 +28,32 @@
       </div>
       <button class="next-level-button" type="button" hidden>Next Level</button>
     </div>
-    <div class="level-details">
-      <p class="level-objective"></p>
-      <p class="level-progress-text"></p>
-      <p class="level-notification" role="status" aria-live="polite" hidden></p>
-    </div>
     <div class="money-counter" aria-label="Leaves">
       <img class="currency-icon balance-icon" src="images/leaf.png" alt="Leaves" width="32" height="32" />
       <output class="money-amount" aria-live="polite">5</output>
-      <output class="compost-reward" role="status" hidden></output>
     </div>
     <aside class="payout-controls" aria-label="Tree income">
       <div class="tutorial-plant-prompt tutorial-done-prompt" hidden>
         <p>Click Done to collect leaves from all your trees. Upgrade trees to earn more with every click!</p>
         <button class="tutorial-done-next" type="button">Got it — let’s plant!</button>
       </div>
-      <span class="turn-indicator" role="status" aria-live="polite" hidden></span>
       <button class="done-button" type="button" disabled>Done</button>
       <button class="forfeit-button" type="button" hidden>Forfeit</button>
       <span class="payout-amount">0.00 leaves per click</span>
-      <output class="payout-status" role="status" aria-live="polite"></output>
     </aside>
   </header>
-  <output class="save-status" role="status" aria-live="polite"></output>
+  <!-- Keep game feedback here so messages cannot resize the header controls. -->
+  <section class="board-messages" aria-label="Game messages">
+    <span class="turn-indicator" role="status" aria-live="polite" hidden></span>
+    <div class="level-details">
+      <p class="level-objective"></p>
+      <p class="level-progress-text"></p>
+      <p class="level-notification" role="status" aria-live="polite" hidden></p>
+    </div>
+    <output class="payout-status" role="status" aria-live="polite"></output>
+    <output class="compost-reward" role="status" hidden></output>
+    <output class="save-status" role="status" aria-live="polite"></output>
+  </section>
   <main aria-label="Hexagon game board">
     <svg class="hex-board" viewBox="0 0 460 410" role="img" aria-label="Hexagon tile grid">
       <g class="hex-tiles"></g>
