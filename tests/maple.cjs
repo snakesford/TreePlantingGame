@@ -71,6 +71,32 @@ function plantViaButton(session, type) {
     session.run('if (plantingSeedType) { const tile = getPlantingTargets()[0]; if (tile) plantOnTile(tile.q, tile.r); } window.events.keydown.forEach(callback => callback({key: "Escape"}));');
 }
 
+const clock = game();
+clock.run('gameStarted = true; elapsedCycleTime = 0; previousFrameTime = 0; renderLevelClock()');
+assert.equal(clock.elements.get('.daylight-clock').hidden, false);
+assert.equal(clock.elements.get('.clock-countdown').textContent, 'Dusk payout in 30s');
+clock.run('updateDaylightClock(29999)');
+assert.equal(clock.elements.get('.daylight-status').textContent, 'Day');
+assert.equal(clock.elements.get('.clock-countdown').textContent, 'Dusk payout in 1s');
+clock.run('updateDaylightClock(30000)');
+assert.equal(clock.elements.get('.daylight-status').textContent, 'Night');
+assert.equal(clock.elements.get('.clock-countdown').textContent, 'Dawn payout in 30s');
+clock.elements.get('.speed-toggle').events.click();
+assert.equal(clock.elements.get('.speed-toggle').textContent, '3×');
+assert.equal(clock.elements.get('.speed-toggle').attrs['aria-label'], 'Restore normal daylight clock speed');
+assert.equal(clock.elements.get('.clock-countdown').textContent, 'Dawn payout in 10s');
+clock.elements.get('.pause-clock').events.click();
+clock.run('updateDaylightClock(5000)');
+assert.equal(clock.run('elapsedCycleTime'), 30000);
+assert.equal(clock.elements.get('.clock-countdown').textContent, 'Dawn payout in 10s · Paused');
+clock.elements.get('.pause-clock').events.click();
+clock.run('updateDaylightClock(10000)');
+assert.equal(clock.run('elapsedCycleTime'), 60000);
+assert.equal(clock.elements.get('.daylight-status').textContent, 'Day');
+clock.run('normalMode = true; renderLevelClock()');
+assert.equal(clock.elements.get('.daylight-clock').hidden, true);
+console.log('Level clock phase boundaries, countdown, speed, pause/resume, and mode visibility passed.');
+
 const g = game();
 const tutorial = game();
 assert.notEqual(tutorial.elements.get('.save-slot-dialog').open, true);

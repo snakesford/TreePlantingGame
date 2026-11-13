@@ -3,6 +3,7 @@ const tileElements = new Map();
 const purchaseTileElements = new Map();
 let pressedTreeTile = null;
 let tilePressOverlay = null;
+let plantingSeedType = null;
 
 function pressTile(key, event, target) {
     if (event.button !== 0) return;
@@ -57,6 +58,7 @@ const doneButton = document.querySelector(".done-button");
 const daylightClock = document.querySelector(".daylight-clock");
 const daylightStatus = document.querySelector(".daylight-status");
 const clockFace = document.querySelector(".clock-face");
+const clockCountdown = document.querySelector(".clock-countdown");
 const pauseClockButton = document.querySelector(".pause-clock");
 const clockSpeedButton = document.querySelector(".speed-toggle");
 const dayCycleDuration = 60000;
@@ -77,11 +79,18 @@ function renderLevelClock() {
     daylightStatus.textContent = status;
     daylightClock.setAttribute("aria-label", `Day and night cycle: ${status}`);
     clockFace.style.setProperty("--clock-rotation", `${-position / dayCycleDuration * 360}deg`);
+    const nextPayout = status === "Day" ? "Dusk" : "Dawn";
+    const secondsRemaining = Math.ceil((dayCycleDuration / 2 - position % (dayCycleDuration / 2)) / (1000 * clockSpeed));
+    const countdown = `${nextPayout} payout in ${secondsRemaining}s${clockPaused ? " · Paused" : ""}`;
+    if (clockCountdown.textContent !== countdown) clockCountdown.textContent = countdown;
     pauseClockButton.textContent = clockPaused ? "▶" : "⏸";
     pauseClockButton.setAttribute("aria-label", `${clockPaused ? "Resume" : "Pause"} daylight clock`);
     pauseClockButton.setAttribute("aria-pressed", String(clockPaused));
     pauseClockButton.title = clockPaused ? "Resume" : "Pause";
     clockSpeedButton.setAttribute("aria-pressed", String(clockSpeed === 3));
+    clockSpeedButton.textContent = `${clockSpeed}×`;
+    clockSpeedButton.setAttribute("aria-label", clockSpeed === 3 ? "Restore normal daylight clock speed" : "Triple daylight clock speed");
+    clockSpeedButton.title = clockSpeed === 3 ? "Normal speed" : "Triple speed";
 }
 
 function updateDaylightClock(frameTime) {
@@ -779,6 +788,7 @@ function updatePlayerRoster() {
         const avatar = document.createElement("span");
         avatar.className = "player-avatar";
         avatar.setAttribute("data-color", player.color);
+        avatar.setAttribute("data-shape", player.color === humanColor ? selectedShape : "circle");
         const seed = document.createElement("img");
         seed.src = `images/${player.seedType}/seed.png`;
         seed.alt = `${player.seedType} seed`;
