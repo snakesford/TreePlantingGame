@@ -2054,6 +2054,15 @@ for (const shape of playerShapes) {
     });
 }
 
+document.querySelector(".setup-random-button").addEventListener("click", () => {
+    const colors = choosingColorForContinue && activeBoardColors ? activeBoardColors : playerColors;
+    const seedTypes = ["maple", "birch", "spruce", "oak"];
+    pendingColor = colors[Math.floor(Math.random() * colors.length)];
+    pendingSeedType = seedTypes[Math.floor(Math.random() * seedTypes.length)];
+    pendingShape = randomPlayerShape();
+    updateSetupPreview();
+});
+
 setupDoneButton.addEventListener("click", () => {
     if (!pendingColor || !pendingSeedType) return;
     colorDialog.close();
