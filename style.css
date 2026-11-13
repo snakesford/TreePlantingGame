@@ -831,3 +831,14 @@ main {
 .tile-body[data-color="grey"] .hex-tile { fill: #7b8289; }
 .tile-body[data-color="grey"] .tile-surface { fill: #a8adb2; }
 .forfeit-button { background: #89433c; color: #fff; }
+
+.purchase-tile[data-plantable="true"],
+.tile-body[data-plantable="true"] .hex-tile {
+    stroke: #f7e37b;
+    stroke-width: 3;
+    cursor: crosshair;
+}
+.game-actions button[aria-pressed="true"] {
+    outline: 3px solid #f7e37b;
+    outline-offset: 2px;
+}

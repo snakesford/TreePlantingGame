@@ -31,6 +31,8 @@ const levelLabel = document.querySelector(".level-label");
 const nextLevelButton = document.querySelector(".next-level-button");
 let currentLevel = 1;
 let normalMode = true;
+let naturalExpansion = false;
+let pendingNaturalExpansion = false;
 let levelOneCompleted = false;
 let levelTwoCompleted = false;
 const completedLevels = new Set();
@@ -76,6 +78,10 @@ document.querySelector(".menu-normal-button").addEventListener("click", () => {
     setGameMenuOpen(false);
     startNewGame();
 });
+document.querySelector(".menu-natural-button").addEventListener("click", () => {
+    setGameMenuOpen(false);
+    startNewGame(false, null, false, null, true);
+});
 document.querySelector(".menu-tutorial-button").addEventListener("click", () => {
     setGameMenuOpen(false);
     startNewGame(true);
@@ -94,6 +100,7 @@ const setupPreview = document.querySelector(".setup-preview");
 const setupPreviewSeed = document.querySelector(".setup-preview-seed");
 let pendingSeedType = null;
 let selectedSeedType = null;
+let plantingSeedType = null;
 let pendingColor = null;
 let selectedColor = null;
 let playerStates = [];
@@ -315,6 +322,7 @@ function saveGame() {
         humanColor,
         selectedSeedType,
         normalMode,
+        naturalExpansion,
         activeBoardColors,
         playerStates,
         tileOwnership: Array.from(tileOwnership, ([key, color]) => ({ key, color })),
@@ -416,11 +424,13 @@ function isValidSaveData(data) {
             new Set(data.activeBoardColors).size !== data.activeBoardColors.length ||
             data.activeBoardColors.some(color => !["red", "green", "yellow"].includes(color)) ||
             !data.activeBoardColors.includes(data.selectedColor) ||
-            data.boardTileCount !== 1 + 7 * data.activeBoardColors.length)) ||
+            data.boardTileCount !== (data.naturalExpansion ? 91 : 1 + 7 * data.activeBoardColors.length))) ||
         (data.humanColor != null && (!["red", "green", "yellow"].includes(data.humanColor) ||
             !(data.activeBoardColors ?? [data.selectedColor]).includes(data.humanColor))) ||
         (data.selectedSeedType != null && !["maple", "birch", "spruce", "oak"].includes(data.selectedSeedType)) ||
         (data.normalMode !== undefined && typeof data.normalMode !== "boolean") ||
+        (data.naturalExpansion !== undefined && typeof data.naturalExpansion !== "boolean") ||
+        (data.naturalExpansion && (data.normalMode !== true || !data.activeBoardColors || data.boardTileCount !== 91)) ||
         (data.selectedColor != null && !["red", "green", "yellow"].includes(data.selectedColor)) ||
         (data.currentLevel !== undefined && (!Number.isInteger(data.currentLevel) || data.currentLevel < 1 || data.currentLevel > 8)) ||
         (data.boardLayoutVersion !== undefined && ![1, 2].includes(data.boardLayoutVersion)) ||
@@ -457,7 +467,7 @@ function isValidSaveData(data) {
     );
     const additionalTiles = data.additionalTiles ?? [];
     const obstacleTiles = data.obstacles ?? [];
-    const startingTiles = getStartingCoordinates(getSavedStartingTileCount(data), data.boardLayoutVersion ?? 1, data.activeBoardColors ?? null);
+    const startingTiles = getStartingCoordinates(getSavedStartingTileCount(data), data.boardLayoutVersion ?? 1, data.activeBoardColors ?? null, data.naturalExpansion === true);
     const knownTileKeys = new Set(startingTiles.map(({ q, r }) => getTileKey(q, r)));
     const tilePositions = startingTiles.map(({ q, r }) => getTileCenter(q, r));
     for (const tile of additionalTiles) {
@@ -620,7 +630,7 @@ function updateMoneyDisplay() {
         ? playerStates.find(player => player.color === humanColor)?.moneyInCents ?? 0
         : moneyInCents;
     moneyAmount.textContent = (displayedBalance / 100).toString();
-    const noPlantableTiles = getPlantableTiles().length === 0;
+    const noPlantableTiles = getPlantingTargets().length === 0;
     const cannotPlantSeed = moneyInCents < seedCostInCents || noPlantableTiles;
     plantMapleButton.disabled = cannotPlantSeed;
     plantBirchButton.disabled = cannotPlantSeed;
@@ -651,6 +661,7 @@ function updateMoneyDisplay() {
     forfeitButton.disabled = isBotTurn() || spectating || gameIsOver();
     turnIndicator.setAttribute("data-color", selectedColor ?? "");
     updatePurchaseTiles();
+    updatePlantingHighlights();
     payoutAmount.textContent = `${(income / 100).toFixed(2)} leaves per click`;
     doneButton.setAttribute("aria-label", `Done: collect ${(income / 100).toFixed(2)} leaves`);
 }
@@ -746,6 +757,7 @@ function advanceToNextLevel() {
 }
 
 function resetBoard() {
+    plantingSeedType = null;
     botTurnVersion += 1;
     closeSeedDialog(selectedSeed);
     closeObstacleDialog(selectedObstacle);
@@ -920,6 +932,7 @@ function updateObstacleVisibility() {
 }
 
 function activateObstacle(q, r) {
+    if (plantingSeedType) { plantOnTile(q, r); return; }
     const key = getTileKey(q, r);
     const obstacle = tileObstacles.get(key);
     if (!obstacle || !isObstacleVisible(obstacle)) return;
@@ -1018,9 +1031,17 @@ function addBoardTile(q, r, isPurchased = false, purchasedColor = selectedColor)
         if (seed) closeSeedDialog(seed);
     });
     tileBody.addEventListener("click", () => {
+        if (plantingSeedType) { plantOnTile(q, r); return; }
         const seed = getPlantedSeed();
         if (normalMode && getBoardTileColor(q, r) === "grey") purchaseTile(q, r);
         else if (seed) upgradeSeed(seed);
+    });
+    tileBody.setAttribute("tabindex", "0");
+    tileBody.addEventListener("keydown", event => {
+        if (plantingSeedType && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            plantOnTile(q, r);
+        }
     });
     tileElements.set(key, tileBody);
     tileBody.append(tile);
@@ -1235,6 +1256,7 @@ function openSeedDialog(seedState, event) {
 }
 
 function upgradeSeed(seedState) {
+    if (plantingSeedType) { plantOnTile(seedState.tile.q, seedState.tile.r); return; }
     if (normalMode && getBoardTileColor(seedState.tile.q, seedState.tile.r) === "grey") {
         purchaseTile(seedState.tile.q, seedState.tile.r);
         return;
@@ -1332,6 +1354,7 @@ function canAct() {
 }
 
 function moveToNextPlayer() {
+    plantingSeedType = null;
     const colors = ["green", "yellow", "red"];
     for (let offset = 1; offset <= colors.length; offset++) {
         const color = colors[(colors.indexOf(selectedColor) + offset) % colors.length];
@@ -1392,7 +1415,7 @@ function scheduleBotTurn() {
             const plantingCost = selectedSeedType === "oak" ? oakSeedCostInCents : seedCostInCents;
             const upgrade = trees.filter(seed => seed.stageIndex < maximumGrowthStage && getSeedUpgradeCost(seed) <= moneyInCents)
                 .sort((a, b) => getSeedUpgradeCost(a) - getSeedUpgradeCost(b) || b.upgradesInStage - a.upgradesInStage)[0];
-            const needsSpace = getPlantableTiles().length === 0;
+            const needsSpace = getPlantingTargets().length === 0;
             const obstacle = Array.from(tileObstacles.values())
                 .filter(({ q, r, clearCostInCents }) => boardTileKeys.has(getTileKey(q, r)) &&
                     getBoardTileColor(q, r) === selectedColor && moneyInCents >= clearCostInCents + plantingCost)
@@ -1426,8 +1449,9 @@ function scheduleBotTurn() {
                 compostTree(mature[0]);
                 composted = true;
                 payoutStatus.textContent = `${name} bot composted a mature tree.`;
-            } else if (!planted && getPlantableTiles().length > 0 && moneyInCents >= plantingCost) {
-                plantSeed();
+            } else if (!planted && getPlantingTargets().length > 0 && moneyInCents >= plantingCost) {
+                const targets = getPlantingTargets();
+                plantSeed(selectedSeedType, targets[Math.floor(Math.random() * targets.length)]);
                 planted = true;
                 payoutStatus.textContent = `${name} bot planted a tree.`;
             } else if (upgrade) {
@@ -1468,7 +1492,7 @@ document.querySelector(".tutorial-complete-next").addEventListener("click", () =
 tutorialCompleteDialog.addEventListener("close", () => {
     if (startingTileCount !== 1 || !tutorialCompleted) return;
     currentLevel = 1;
-    startingTileCount = levelTileCounts[0];
+    startingTileCount = 7;
     boardLayoutVersion = 2;
     levelOneCompleted = false;
     levelTwoCompleted = false;
@@ -1505,6 +1529,7 @@ function continueGame() {
     if (!savedGameData || !isValidSaveData(savedGameData)) return;
 
     normalMode = savedGameData.normalMode ?? getSavedStartingTileCount(savedGameData) !== 1;
+    naturalExpansion = savedGameData.naturalExpansion === true;
     playerStates = (savedGameData.playerStates ?? []).map(player => ({ ...player }));
     tileOwnership = new Map((savedGameData.tileOwnership ?? []).map(({key, color}) => [key, color]));
     selectedSeedType = savedGameData.selectedSeedType ?? null;
@@ -1541,9 +1566,10 @@ function continueGame() {
     startGame();
 }
 
-function startNewGame(withTutorial = false, color = null, withLevels = false, seedType = null) {
+function startNewGame(withTutorial = false, color = null, withLevels = false, seedType = null, withNaturalExpansion = false) {
     if (!withTutorial && !withLevels &&
         (!["red", "green", "yellow"].includes(color) || !["maple", "birch", "spruce", "oak"].includes(seedType))) {
+        pendingNaturalExpansion = withNaturalExpansion;
         openPlayerSetup(false);
         return;
     }
@@ -1559,6 +1585,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     playerStates = [];
     tileOwnership.clear();
     normalMode = !withTutorial && !withLevels;
+    naturalExpansion = normalMode && withNaturalExpansion;
     selectedSeedType = normalMode ? seedType : null;
     if (tutorialWelcomeDialog.open) tutorialWelcomeDialog.close();
     document.querySelector(".tutorial-done-prompt").hidden = true;
@@ -1568,7 +1595,7 @@ function startNewGame(withTutorial = false, color = null, withLevels = false, se
     activeBoardColors = normalMode ? choosePlayerColors(color, playerCount) : null;
     tutorialCompleted = false;
     currentLevel = 1;
-    startingTileCount = withTutorial ? 1 : withLevels ? 7 : 1 + 7 * activeBoardColors.length;
+    startingTileCount = withTutorial ? 1 : withLevels ? 7 : naturalExpansion ? 91 : 1 + 7 * activeBoardColors.length;
     boardLayoutVersion = 2;
     resetBoard();
     if (normalMode) {
@@ -1676,7 +1703,7 @@ setupDoneButton.addEventListener("click", () => {
         });
         startGame();
     } else {
-        startNewGame(false, pendingColor, false, pendingSeedType);
+        startNewGame(false, pendingColor, false, pendingSeedType, pendingNaturalExpansion);
     }
 });
 
@@ -1686,15 +1713,23 @@ newGameButton.addEventListener("click", () => startNewGame());
 tutorialButton.addEventListener("click", () => startNewGame(true));
 window.addEventListener("beforeunload", saveGame);
 
-function plantSeed(treeType = normalMode ? selectedSeedType : "maple") {
+function plantSeed(treeType = normalMode ? selectedSeedType : "maple", target = null) {
     if (!canAct()) return;
     if (normalMode && treeType !== selectedSeedType) return;
     if (!["maple", "birch", "spruce", "oak"].includes(treeType)) return;
     const plantingCost = treeType === "oak" ? oakSeedCostInCents : seedCostInCents;
-    const plantableTiles = getPlantableTiles();
-    if (moneyInCents < plantingCost || plantableTiles.length === 0) return;
+    const plantableTiles = target ? getPlantingTargets().filter(tile => tile.q === target.q && tile.r === target.r) : getPlantableTiles();
+    if (moneyInCents < plantingCost || plantableTiles.length === 0) return false;
 
-    const { x, y } = plantableTiles[Math.floor(Math.random() * plantableTiles.length)];
+    const { q, r, x, y } = plantableTiles[Math.floor(Math.random() * plantableTiles.length)];
+    if (normalMode && (!boardTileKeys.has(getTileKey(q,r)) || getBoardTileColor(q,r) === "grey")) {
+        if (boardTileKeys.has(getTileKey(q,r))) {
+            tileOwnership.set(getTileKey(q,r), selectedColor);
+            tileElements.get(getTileKey(q,r))?.recolor(selectedColor);
+        } else {
+            addBoardTile(q, r, true);
+        }
+    }
     addPlantedSeed({
         treeType,
         x,
@@ -1707,10 +1742,63 @@ function plantSeed(treeType = normalMode ? selectedSeedType : "maple") {
     saveGame();
 }
 
-plantMapleButton.addEventListener("click", () => plantSeed("maple"));
-plantBirchButton.addEventListener("click", () => plantSeed("birch"));
-plantSpruceButton.addEventListener("click", () => plantSeed("spruce"));
-plantOakButton.addEventListener("click", () => plantSeed("oak"));
+function getPlantingTargets() {
+    const owned = getPlantableTiles();
+    if (!normalMode) return owned;
+    const grey = getGreyTileCoordinates().filter(({ q, r }) =>
+        tileNeighborOffsets.some(([dq, dr]) => boardTileKeys.has(getTileKey(q + dq, r + dr)) &&
+            getBoardTileColor(q + dq, r + dr) === selectedColor) &&
+        !tileObstacles.has(getTileKey(q,r)) &&
+        !plantedSeeds.some(seed => seed.tile.q === q && seed.tile.r === r)
+    ).map(({q,r}) => ({q,r,...getTileCenter(q,r)}));
+    return [...owned, ...grey];
+}
+
+function beginPlanting(treeType) {
+    if (!gameStarted || !canAct() || (normalMode && treeType !== selectedSeedType)) return;
+    const cost = treeType === "oak" ? oakSeedCostInCents : seedCostInCents;
+    if (moneyInCents < cost || getPlantingTargets().length === 0) return;
+    plantingSeedType = treeType;
+    payoutStatus.textContent = "Choose a highlighted empty tile to plant. Adjacent grey tiles become yours. Press Escape to cancel.";
+    updateMoneyDisplay();
+}
+
+function plantOnTile(q, r) {
+    if (!plantingSeedType || !canAct()) return;
+    if (!getPlantingTargets().some(tile => tile.q === q && tile.r === r)) {
+        payoutStatus.textContent = "Choose an empty owned tile or an empty grey tile next to your territory.";
+        return;
+    }
+    const type = plantingSeedType;
+    const cost = type === "oak" ? oakSeedCostInCents : seedCostInCents;
+    if (moneyInCents < cost) return;
+    plantingSeedType = null;
+    plantSeed(type, {q,r});
+    payoutStatus.textContent = "Seed planted.";
+}
+
+function updatePlantingHighlights() {
+    const targets = new Set(plantingSeedType ? getPlantingTargets().map(({q,r}) => getTileKey(q,r)) : []);
+    [tileElements, purchaseTileElements].forEach(elements => elements.forEach((element, key) => {
+        element.setAttribute("data-plantable", String(targets.has(key)));
+    }));
+    for (const [type, button] of [["maple", plantMapleButton], ["birch", plantBirchButton], ["spruce", plantSpruceButton], ["oak", plantOakButton]]) {
+        button.setAttribute("aria-pressed", String(type === plantingSeedType));
+    }
+}
+
+window.addEventListener("keydown", event => {
+    if (event.key === "Escape" && plantingSeedType) {
+        plantingSeedType = null;
+        payoutStatus.textContent = "Planting cancelled.";
+        updateMoneyDisplay();
+    }
+});
+
+plantMapleButton.addEventListener("click", () => beginPlanting("maple"));
+plantBirchButton.addEventListener("click", () => beginPlanting("birch"));
+plantSpruceButton.addEventListener("click", () => beginPlanting("spruce"));
+plantOakButton.addEventListener("click", () => beginPlanting("oak"));
 
 // Six tiles along an edge means five steps from the center (91 spaces).
 function getGreyTileCoordinates() {
@@ -1759,17 +1847,19 @@ function updatePurchaseTiles() {
             }).join(" "));
             tile.setAttribute("role", "button");
             tile.setAttribute("tabindex", "0");
-            const label = adjacent ? "Buy this hex for 25 leaves" : "Expand your territory to this hex to buy it for 25 leaves";
+            const canPlant = plantingSeedType && getPlantingTargets().some(tile => tile.q === q && tile.r === r);
+            const label = plantingSeedType ? "Plant a seed here to claim this tile" : "Choose Plant Seed to claim adjacent empty tiles, or buy this hex for 25 leaves";
             tile.setAttribute("aria-label", label);
-            tile.setAttribute("aria-disabled", String(disabled || !adjacent));
+            tile.setAttribute("aria-disabled", String(plantingSeedType ? !canPlant || !canAct() : disabled || !adjacent));
             const title = document.createElementNS(svgNamespace, "title");
             title.textContent = label;
             tile.append(title);
-            tile.addEventListener("click", () => purchaseTile(q, r));
+            tile.addEventListener("click", () => plantingSeedType ? plantOnTile(q, r) : purchaseTile(q, r));
             tile.addEventListener("keydown", event => {
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    purchaseTile(q, r);
+                    if (plantingSeedType) plantOnTile(q, r);
+                    else purchaseTile(q, r);
                 }
             });
             purchaseTileElements.set(getTileKey(q, r), tile);
@@ -1823,7 +1913,13 @@ function getSavedStartingTileCount(data) {
     return 1 + 3 * length * (length - 1);
 }
 
-function getNormalBoardCoordinates(colors = activeBoardColors) {
+function getNaturalExpansionCoordinates(colors) {
+    const positions = colors.length === 2 ? [[5, -2], [-5, 2]] : [[5, -2], [-3, 5], [-2, -3]];
+    return colors.map((color, index) => ({ q: positions[index][0], r: positions[index][1], color }));
+}
+
+function getNormalBoardCoordinates(colors = activeBoardColors, expansion = naturalExpansion) {
+    if (expansion && colors) return getNaturalExpansionCoordinates(colors);
     const coordinates = [{ q: 0, r: 0, color: "blue" }];
     for (const [q, r, color] of [[1, -2, "green"], [1, 1, "yellow"], [-2, 1, "red"]]) {
         if (colors && !colors.includes(color)) continue;
@@ -1841,8 +1937,8 @@ function getBoardTileColor(q, r) {
     return getNormalBoardCoordinates().find(tile => tile.q === q && tile.r === r)?.color ?? selectedColor ?? "green";
 }
 
-function getStartingCoordinates(count, layoutVersion = boardLayoutVersion, colors = activeBoardColors) {
-    if (colors || count === 22) return getNormalBoardCoordinates(colors).map(({ q, r }) => ({ q, r }));
+function getStartingCoordinates(count, layoutVersion = boardLayoutVersion, colors = activeBoardColors, expansion = naturalExpansion) {
+    if (colors || count === 22) return getNormalBoardCoordinates(colors, expansion).map(({ q, r }) => ({ q, r }));
     let extent = 0;
     while (1 + 3 * extent * (extent + 1) < count) extent += 1;
     const coordinates = [];

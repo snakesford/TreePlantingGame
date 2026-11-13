@@ -61,6 +61,12 @@ function game(saved = null) {
     return { run: code => vm.runInContext(code, context), elements, storage };
 }
 
+function plantViaButton(session, type) {
+    session.run("gameStarted = true");
+    session.elements.get(`.plant-${type}-button`).events.click();
+    session.run('if (plantingSeedType) { const tile = getPlantingTargets()[0]; if (tile) plantOnTile(tile.q, tile.r); }');
+}
+
 const g = game();
 const tutorial = game();
 assert.notEqual(tutorial.elements.get('.save-slot-dialog').open, true);
@@ -105,7 +111,7 @@ assert.equal(resumedTutorial.run('boardTileCoordinates.length'), 1);
 assert.equal(resumedTutorial.run('plantedSeeds.length'), 0);
 assert.equal(resumedTutorial.elements.get('.plant-birch-button').hidden, true);
 resumedTutorial.run('window.setTimeout = (callback, delay) => { window.pendingUpgradePrompt = callback; window.upgradePromptDelay = delay; }');
-resumedTutorial.elements.get('.plant-maple-button').events.click();
+plantViaButton(resumedTutorial, 'maple');
 assert.equal(resumedTutorial.run('plantedSeeds.length'), 1);
 assert.equal(resumedTutorial.run('plantedSeeds[0].treeType'), 'maple');
 assert.equal(resumedTutorial.elements.get('.tutorial-upgrade-prompt').hidden, true);
@@ -178,7 +184,7 @@ assert.equal(refreshedModeMenu.run('availableTiles.length'), 19);
 assert.equal(refreshedModeMenu.run('currentLevel'), 1);
 assert.equal(refreshedModeMenu.run('tutorialWelcomeDialog.open === true'), false);
 console.log('Tutorial empty tile, maple-only planting controls, save/continue, and normal new game passed.');
-g.elements.get('.plant-maple-button').events.click();
+plantViaButton(g, 'maple');
 assert.equal(g.run('plantedSeeds[0].treeType'), 'maple');
 assert.equal(g.run('moneyInCents'), 9999899);
 g.run('openSeedDialog(plantedSeeds[0])');
@@ -230,7 +236,7 @@ assert.equal(g.run('plantedSeeds.length'), 3);
 console.log('Maple planting, stage prices/income, purchased growth, mature cap, saving, legacy saves, and affordability passed.');
 
 const birch = game();
-birch.elements.get('.plant-birch-button').events.click();
+plantViaButton(birch, 'birch');
 assert.equal(birch.run('plantedSeeds[0].treeType'), 'birch');
 assert.equal(birch.run('moneyInCents'), 9999899);
 const imageNames = ['seed', 'germination', 'sprout', 'seedling', 'sapling', 'adult', 'adult'];
@@ -269,7 +275,7 @@ assert.equal(birch.run('plantedSeeds.length'), 2);
 console.log('Birch planting, all stage images/stats, four upgrades per stage, purchased growth, save/load, and affordability passed.');
 
 const spruce = game();
-spruce.elements.get('.plant-spruce-button').events.click();
+plantViaButton(spruce, 'spruce');
 assert.equal(spruce.run('plantedSeeds[0].treeType'), 'spruce');
 assert.equal(spruce.run('moneyInCents'), 9999899);
 for (const [stage, income, cost, days, image] of [
@@ -306,7 +312,7 @@ assert.equal(spruce.run('plantedSeeds.length'), 2);
 console.log('Spruce planting, stage images/stats, four upgrades, purchased growth, save/load, and affordability passed.');
 
 const oak = game();
-oak.elements.get('.plant-oak-button').events.click();
+plantViaButton(oak, 'oak');
 assert.equal(oak.run('plantedSeeds[0].treeType'), 'oak');
 assert.equal(oak.run('moneyInCents'), 9999699);
 for (const [stage, income, cost, days, image] of [
@@ -344,7 +350,7 @@ console.log('Oak planting, stage images/stats, four upgrades, purchased growth, 
 
 oak.run('moneyInCents = 300; updateMoneyDisplay()');
 assert.equal(oak.elements.get('.plant-oak-button').disabled, false);
-oak.elements.get('.plant-oak-button').events.click();
+plantViaButton(oak, 'oak');
 assert.equal(oak.run('moneyInCents'), 0);
 assert.equal(oak.run('plantedSeeds.length'), 3);
 oak.run('moneyInCents = 300; availableTiles.length = 0; updateMoneyDisplay(); plantSeed("oak")');
@@ -744,7 +750,7 @@ assert.equal(JSON.stringify(restoredLayout.run('boardTileCoordinates')),
 console.log('Partial rings remain centered and old layouts load without moving trees.');
 
 const pressFeedback = game();
-pressFeedback.elements.get('.plant-maple-button').events.click();
+plantViaButton(pressFeedback, 'maple');
 for (let stage = 0; stage <= pressFeedback.run('maximumGrowthStage'); stage += 1) {
     pressFeedback.run(`plantedSeeds[0].stageIndex = ${stage}; updateSeedAppearance(plantedSeeds[0])`);
     const tree = pressFeedback.run('plantedSeeds[0].image');
@@ -767,7 +773,7 @@ assert.equal(pressFeedback.run('tilePressOverlay'), null);
 console.log('Tile press feedback covers every tree stage and empty tiles, clears on release, and ignores right-clicks.');
 
 const tileInteraction = game();
-tileInteraction.elements.get('.plant-maple-button').events.click();
+plantViaButton(tileInteraction, 'maple');
 const plantedTile = tileInteraction.run('tileElements.get(getTileKey(plantedSeeds[0].tile.q, plantedSeeds[0].tile.r))');
 plantedTile.events.mouseenter({ clientX: 450, clientY: 450 });
 assert.equal(tileInteraction.run('selectedSeed === plantedSeeds[0]'), true);
@@ -842,8 +848,8 @@ for (const color of ['red', 'green', 'yellow']) {
     assert.equal(colored.run('plantedSeeds.length'), 9);
     assert.equal(colored.run('plantedSeeds.filter(seed => seed.stageIndex === 0).every(seed => getBoardTileColor(seed.tile.q, seed.tile.r) === selectedColor)'), true);
     assert.equal(colored.run('availableTiles.length'), 13);
-    assert.equal(colored.elements.get('.plant-maple-button').disabled, true);
-    assert.equal(colored.elements.get('.plant-oak-button').disabled, true);
+    assert.equal(colored.elements.get('.plant-maple-button').disabled, colored.run('getPlantingTargets().length === 0'));
+    assert.equal(colored.elements.get('.plant-oak-button').disabled, colored.run('getPlantingTargets().length === 0'));
     const balance = colored.run('moneyInCents');
     colored.run('plantSeed()');
     assert.equal(colored.run('moneyInCents'), balance);
@@ -1003,7 +1009,7 @@ for (const seedType of ['maple', 'birch', 'spruce', 'oak']) {
         assert.equal(button.hidden, type !== seedType);
         const beforeCount = seedSetup.run('plantedSeeds.length');
         const beforeBalance = seedSetup.run('moneyInCents');
-        button.events.click();
+        plantViaButton(seedSetup, type);
         assert.equal(seedSetup.run('plantedSeeds.length'), beforeCount + (type === seedType ? 1 : 0));
         if (type !== seedType) assert.equal(seedSetup.run('moneyInCents'), beforeBalance);
     }
@@ -1170,7 +1176,7 @@ for (const count of [1, 2, 3]) {
     }
 }
 const compostBot = game();
-compostBot.run(`moneyInCents = 1000; startNewGame(false, 'green', false, 'maple');
+compostBot.run(`Math.random = () => 0; moneyInCents = 1000; startNewGame(false, 'green', false, 'maple');
     for (const tile of [...availableTiles].filter(tile => getBoardTileColor(tile.q, tile.r) === 'yellow')) {
         addPlantedSeed({ x: tile.x, y: tile.y, treeType: 'maple', stageIndex: maximumGrowthStage, upgradesInStage: 0 });
     }`);
@@ -1402,3 +1408,112 @@ assert.equal(soloForfeit.run('gameIsOver()'), true);
 assert.equal(soloForfeit.run('getCurrentPlayerIncome()'), 0);
 assert.equal(soloForfeit.elements.get('.done-button').disabled, true);
 console.log('Forfeit releases tiles, freezes eliminated balances, skips turns, persists spectators and reclaimed land, handles bot bankruptcy, and stops at game over.');
+
+for (const count of [1, 2, 3]) {
+    for (const color of ['green', 'yellow', 'red']) {
+        const natural = game();
+        natural.run('Math.random = () => 0.5; moneyInCents = 5000');
+        natural.elements.get('.menu-natural-button').events.click();
+        assert.equal(natural.elements.get('.color-dialog').open, true);
+        assert.equal(natural.run('gameStarted'), false);
+        natural.elements.get('.player-count-slider').value = String(count);
+        natural.elements.get('.player-count-slider').events.input();
+        natural.elements.get(`.choose-${color}`).events.click();
+        natural.elements.get('.choose-seed-oak').events.click();
+        natural.elements.get('.setup-done-button').events.click();
+        assert.equal(natural.run('naturalExpansion'), true);
+        assert.equal(natural.run('humanColor'), color);
+        assert.equal(natural.run('normalMode'), true);
+        assert.equal(natural.run('boardTileCoordinates.length'), count);
+        assert.equal(natural.run('boardTileKeys.size + purchaseTileElements.size'), 91);
+        assert.equal(natural.run('plantedSeeds.length'), count);
+        assert.equal(natural.run('plantedSeeds.every(seed => seed.stageIndex === 2 && seed.upgradesInStage === 0)'), true);
+        assert.equal(natural.run('plantedSeeds.find(canManageTree).treeType'), 'oak');
+        assert.equal(natural.run('activeBoardColors.every(color => boardTileCoordinates.filter(({q,r}) => getBoardTileColor(q,r) === color).length === 1)'), true);
+        assert.equal(natural.run('boardTileCoordinates.every(({q,r}) => Math.max(Math.abs(q), Math.abs(r), Math.abs(q+r)) === 5)'), true);
+        if (count === 2) {
+            assert.equal(natural.run('boardTileCoordinates[0].q + boardTileCoordinates[1].q'), 0);
+            assert.equal(natural.run('boardTileCoordinates[0].r + boardTileCoordinates[1].r'), 0);
+        }
+        if (count === 3) {
+            assert.equal(natural.run('boardTileCoordinates.reduce((sum, tile) => sum + tile.q, 0)'), 0);
+            assert.equal(natural.run('boardTileCoordinates.reduce((sum, tile) => sum + tile.r, 0)'), 0);
+        }
+        assert.notEqual(natural.elements.get('.tutorial-welcome-dialog').open, true);
+        natural.run('purchaseTile(0,0)');
+        assert.equal(natural.run('moneyInCents'), 2500);
+        const resumed = game(natural.storage.get('tree-planting-game-save'));
+        assert.equal(resumed.run('naturalExpansion'), true);
+        assert.equal(resumed.run('boardTileCoordinates.length'), count + 1);
+        assert.equal(resumed.run('plantedSeeds.length'), count);
+        assert.equal(resumed.run('getBoardTileColor(0,0)'), color);
+        assert.equal(resumed.run('boardTileKeys.size + purchaseTileElements.size'), 91);
+        installBotClock(resumed);
+        resumed.run('collectPayout()');
+        finishBotTurns(resumed);
+        assert.equal(resumed.run('selectedColor'), color);
+        resumed.elements.get('.menu-normal-button').events.click();
+        resumed.elements.get('.player-count-slider').value = String(count);
+        resumed.elements.get('.player-count-slider').events.input();
+        resumed.elements.get(`.choose-${color}`).events.click();
+        resumed.elements.get('.choose-seed-maple').events.click();
+        resumed.elements.get('.setup-done-button').events.click();
+        assert.equal(resumed.run('naturalExpansion'), false);
+        assert.equal(resumed.run('boardTileCoordinates.length'), 1 + count * 7);
+    }
+}
+console.log('Natrual Expansion uses shared setup, places edge sprouts opposite or evenly spaced, fills a 91-space map, resumes purchases and turns, and switches back to Normal Mode.');
+
+for (const expansionMode of [false, true]) {
+    for (const species of ['maple', 'birch', 'spruce', 'oak']) {
+        const targeted = game();
+        targeted.run(`Math.random = () => 0.5; moneyInCents = 1000; startNewGame(false, 'green', false, '${species}', ${expansionMode});
+            window.target = getPlantingTargets().find(({q,r}) => !boardTileKeys.has(getTileKey(q,r)));
+            window.targetKey = getTileKey(window.target.q, window.target.r);`);
+        const before = targeted.storage.get('tree-planting-game-save');
+        targeted.elements.get(`.plant-${species}-button`).events.click();
+        assert.equal(targeted.run('plantingSeedType'), species);
+        assert.equal(targeted.run('plantedSeeds.length'), 3, 'Choosing a seed must wait for a tile');
+        assert.equal(targeted.run('moneyInCents'), 1000);
+        assert.equal(targeted.storage.get('tree-planting-game-save'), before);
+        assert.equal(targeted.run('purchaseTileElements.get(window.targetKey).getAttribute("data-plantable")'), 'true');
+        targeted.run(`window.remote = getGreyTileCoordinates().find(tile => !getPlantingTargets().some(target => target.q === tile.q && target.r === tile.r));
+            purchaseTileElements.get(getTileKey(window.remote.q,window.remote.r)).events.click();
+            const opponent = boardTileCoordinates.find(({q,r}) => getBoardTileColor(q,r) === 'yellow');
+            tileElements.get(getTileKey(opponent.q,opponent.r)).events.click();
+            upgradeSeed(plantedSeeds.find(canManageTree));`);
+        assert.equal(targeted.run('moneyInCents'), 1000);
+        assert.equal(targeted.run('plantedSeeds.length'), 3);
+        targeted.run('purchaseTileElements.get(window.targetKey).events.keydown({key: "Enter", preventDefault() {}})');
+        assert.equal(targeted.run('plantingSeedType'), null);
+        assert.equal(targeted.run('moneyInCents'), species === 'oak' ? 700 : 900);
+        assert.equal(targeted.run('getBoardTileColor(window.target.q,window.target.r)'), 'green');
+        assert.equal(targeted.run(`plantedSeeds.some(seed => seed.tile.q === window.target.q && seed.tile.r === window.target.r && seed.treeType === '${species}' && seed.stageIndex === 0)`), true);
+        const loaded = game(targeted.storage.get('tree-planting-game-save'));
+        assert.equal(loaded.run('plantedSeeds.length'), 4);
+        assert.equal(loaded.run('moneyInCents'), species === 'oak' ? 700 : 900);
+        targeted.elements.get(`.plant-${species}-button`).events.click();
+        targeted.run('collectPayout()');
+        assert.equal(targeted.run('plantingSeedType'), null, 'Ending the turn cancels placement');
+    }
+}
+const blockedPlanting = game();
+blockedPlanting.run(`Math.random = () => 0.5; moneyInCents = 1000; startNewGame(false, 'green', false, 'maple');
+    window.blocked = getPlantingTargets().find(({q,r}) => !boardTileKeys.has(getTileKey(q,r)));
+    addTileObstacle(window.blocked.q, window.blocked.r, 'rock'); beginPlanting('maple');
+    activateObstacle(window.blocked.q,window.blocked.r);`);
+assert.equal(blockedPlanting.run('moneyInCents'), 1000);
+assert.equal(blockedPlanting.run('boardTileKeys.has(getTileKey(window.blocked.q,window.blocked.r))'), false);
+blockedPlanting.run('window.ownedEmpty = getPlantableTiles()[0]; tileElements.get(getTileKey(window.ownedEmpty.q,window.ownedEmpty.r)).events.click()');
+assert.equal(blockedPlanting.run('moneyInCents'), 900);
+assert.equal(blockedPlanting.run('plantedSeeds.length'), 4);
+const freeExpansionBot = game();
+freeExpansionBot.run(`Math.random = () => 0.5; moneyInCents = 1000; startNewGame(false, 'green', false, 'maple', true);
+    playerStates.find(player => player.color === 'yellow').moneyInCents = 100;`);
+installBotClock(freeExpansionBot);
+freeExpansionBot.run('collectPayout(); window.botTimers.shift()()');
+assert.equal(freeExpansionBot.run('moneyInCents'), 0);
+assert.equal(freeExpansionBot.run('purchasedTileCoordinates.length'), 1);
+assert.equal(freeExpansionBot.run('purchasedTileCoordinates[0].color'), 'yellow');
+assert.equal(freeExpansionBot.run('plantedSeeds.length'), 4);
+console.log('Seed buttons wait for a chosen tile; planting claims adjacent grey land for only the seed cost, rejects invalid targets, saves ownership, and lets bots expand without 25 leaves.');
